@@ -1,0 +1,25 @@
+{
+  "name": "moxtra-quickbooks-botbuilder",
+  "version": "1.0.0",
+  "description": "Moxtra-Quickbooks Bot",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "author": "Moxtra Inc",
+  "license": "MIT",
+  "keywords": [
+    "botbuilder",
+    "bots",
+    "chatbots",
+    "botbuilder-samples",
+    "moxtra",
+    "quickbooks"
+  ],
+  "dependencies": {
+    "botbuilder": "^3.8.2",
+    "dateformat": "^3.0.2",
+    "dotenv-extended": "^1.0.4",
+    "express": "^4.16.2",
+    "restify": "^4.3.0"
+  }
+}

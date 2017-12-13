@@ -1,0 +1,30 @@
+{
+  "name": "moxtra-botbuilder-directline-client",
+  "version": "1.0.0",
+  "description": "Moxtra Bot Builder - DirectLine Client",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "author": "Moxtra Inc",
+  "license": "MIT",
+  "keywords": [
+    "botbuilder",
+    "bots",
+    "chatbots",
+    "botbuilder-samples",
+    "moxtra"
+  ],
+  "dependencies": {
+    "cookie": "^0.3.1",
+    "dotenv": "^4.0.0",
+    "jsonwebtoken": "^8.1.0",
+    "moxtra-bot-sdk": "^2.0.0",
+    "node-fetch": "^1.7.3",
+    "open": "0.0.5",
+    "request": "^2.83.0",
+    "request-promise": "^4.1.1",
+    "simple-oauth2": "^1.4.0",
+    "swagger-client": "^2.1.18",
+    "websocket": "^1.0.24"
+  }
+}

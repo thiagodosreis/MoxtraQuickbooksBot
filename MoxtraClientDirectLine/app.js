@@ -7,7 +7,7 @@ const request = require('request');
 const Swagger = require('swagger-client');
 const open = require('open');
 const rp = require('request-promise');
-const OAuth2 = require('./oauth2.js');
+const OAuth2 = require('./oauth.js');
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
 var fs = require('fs');
@@ -166,12 +166,12 @@ directLineClient.then(function (client) {
             startConversationMS(client, chat, function(err, conversation){
                 if(!err){
                     //Send the message (activity) to MS
-                    sendMessagesMS(client, _conversations[chat.binder_id].conversationId, chat.comment.text, chat.user_id, chat.username);
+                    sendMessagesMS(client, _conversations[chat.binder_id].conversationId, chat.comment.text, chat.user_id, chat.username, null);
                 }
             });
         }else{
             //Send the message (activity) to MS
-            sendMessagesMS(client, conversationObj.conversationId, chat.comment.text, chat.user_id, chat.username);
+            sendMessagesMS(client, conversationObj.conversationId, chat.comment.text, chat.user_id, chat.username, null);
         }
     });
 
@@ -198,6 +198,8 @@ directLineClient.then(function (client) {
 
     // after doing OAuth2 against the 3rd party service to obtain a user level access_token
     bot.on('access_token', (accessToken, realmID, moxtraobj, req) => {
+        
+        //adding more atributes to accessToken obj (accessToken.token)
         accessToken.user_id = moxtraobj.user_id;
         accessToken.user_name = moxtraobj.user_name;
         accessToken.binder_id = moxtraobj.binder_id;
@@ -213,7 +215,7 @@ directLineClient.then(function (client) {
         //Send the message (activity) to MS
         var conversationObj = _conversations[accessToken.binder_id];
         if (conversationObj){
-            sendMessagesMS(client, conversationObj.conversationId, "access_token_received", accessToken.user_id, accessToken.user_name);
+            sendMessagesMS(client, conversationObj.conversationId, "access_token_received", accessToken.user_id, accessToken.user_name, accessToken);
         }
     });
 });
@@ -249,9 +251,9 @@ function startConversationMS(client, chat, callback){
 }
 
 // Posting the message to MS Bot (activity)
-function sendMessagesMS(client, conversationId, input, user_id, user_name) {
+function sendMessagesMS(client, conversationId, input, user_id, user_name, stored_token) {
     //get the In Memory Token and attache to the message
-    var stored_token = _tokens[user_id];
+    // var stored_token = _tokens[user_id];
     
     var _token;
     var _realmid;

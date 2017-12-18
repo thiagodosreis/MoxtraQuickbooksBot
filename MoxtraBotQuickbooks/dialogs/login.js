@@ -1,7 +1,7 @@
 module.exports = function(bot) {
     bot.dialog("login",[
         function (session, args, next) {
-            if(!session.message.token){
+            if(!session.userData.token && !session.message.token){
                 session.send(new builder.Message(session).addAttachment(
                     {
                         contentType: "application/moxtra.button",
@@ -26,35 +26,28 @@ module.exports = function(bot) {
             }
         },
         function (session, results, next){
-            session.send("Ok @"+session.message.user.name+". I got your token:");
             if(session.message.token){
-                session.send(session.message.token.access_token);
+                //store user information in the User Storage container
+                session.userData.userName = session.message.user.name;
+                session.userData.userId = session.message.user.id;
+                
+                //store the token and realmid in the User Storage container
+                session.userData.token = session.message.token;
+                session.userData.realmId = session.message.realmid;
+
+                //send the messages back to chat
+                session.send("@"+session.userData.userName+" you're logged into your Quickbooks account.");
+                session.endDialogWithResult({auth: true});
+            }else{
+                session.send("Sorry, no authorization received from Quickbooks. Please, type 'login' to try again.");
+                session.endDialogWithResult({auth: false});
             }
-            session.endDialog("You're logged into your Quickbooks account. Now you can perform any operations.");
         }
     ])
     .triggerAction({
-        matches: /^login$/i,
+        matches: 'login',
         confirmPrompt: "This will cancel your login. Are you sure?"
     });
-
-    // // token call back
-    // bot.dialog("access_token_received",
-    //     function(session, args, next){
-    //         session.send("Ok @"+session.message.user.name+". I got your token:");
-    //         if(session.message.token){
-    //             session.send(session.message.token.access_token);
-    //         }
-    //         session.send("You're logged into your Quickbooks account. Now you can perform any operations.");
-    //         next();
-    //     },
-    //     function(session, results, next){
-    //         session.endDialogWithResult(session.message.token);
-    //     }
-    // )
-    // .triggerAction({
-    //     matches: /^access_token_received$/i
-    // });
 }
 
 

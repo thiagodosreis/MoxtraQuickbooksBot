@@ -60,7 +60,10 @@ OAuth2.prototype.auth = function(req, res) {
 OAuth2.prototype.callback = function(req, res, moxtraobj) {
   var state = req.query.state;
   if(state != this.oauth2_state){
-    throw new Error("The state received in the callback doesn't match the one sent.");
+    this.bot.emit("access_token", {}, null, moxtraobj, req);
+    console.error("The state received in the callback doesn't match the one sent.");
+    res.send('<html><head></head><body onload="javascript:window.close();"></body></html>');
+    return;
   }
 
   //company ID
@@ -76,6 +79,8 @@ OAuth2.prototype.callback = function(req, res, moxtraobj) {
   this.oauth2.authorizationCode.getToken(options, (error, result) => {
     if (error) {
       console.error('Access Token Error', error.message);
+      this.bot.emit("access_token", {}, null, moxtraobj, req);
+      res.send('<html><head></head><body onload="javascript:window.close();"></body></html>');
       return res.json('Authentication failed');
     }
 

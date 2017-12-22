@@ -1,6 +1,7 @@
 var dateFormat = require('dateformat');
 var fs = require('fs');
 var util = require('util');
+var qb = require('./../qbapi.js');
 
 module.exports = function(bot) {
     bot.dialog("searchInvoice",[
@@ -17,11 +18,16 @@ module.exports = function(bot) {
                 //dates
                 var invoiceDueDateRange = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.daterange');
                 if(invoiceDueDateRange){
-                    session.dialogData.invoiceInitDate = invoiceDueDateRange.resolution.values[0].start;
-                    session.dialogData.invoiceFinalDate = invoiceDueDateRange.resolution.values[0].end;
+                    session.dialogData.invoiceInitDate = invoiceDueDateRange.resolution.values[0].start + " 00:00:00";
+                    session.dialogData.invoiceFinalDate = invoiceDueDateRange.resolution.values[0].end + " 00:00:00";
+                }
+                //invoice number
+                var invoiceNumber = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceNumber');
+                if (invoiceNumber){
+                    session.dialogData.invoiceNumber = invoiceNumber.entity;
                 }
 
-                session.dialogData.invoiceDueDateOn = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.date');
+                //session.dialogData.invoiceDueDateOn = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.date');
                 // session.dialogData.invoiceStatus = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceStatus');
             }
 
@@ -42,52 +48,71 @@ module.exports = function(bot) {
                 session.endConversation();
             }
             else{//search customer
-                console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
-                if (!session.conversationData.customerId || session.dialogData.customerName){
-                    var args= {customerName: session.dialogData.customerName};
-                    session.beginDialog('searchCustomer',args);
+                //if user provided invoice number, skip
+                if(session.dialogData.invoiceNumber){
+                    next();
+                }else{
+                    console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
+                    if (!session.conversationData.customerId || session.dialogData.customerName){
+                        var args= {customerName: session.dialogData.customerName};
+                        session.beginDialog('searchCustomer',args);
+                    }else{
+                        next();
+                    }
+                }                
+            }
+        },
+        function (session, results, next) {
+            //if user provided invoice number, skip
+            if(session.dialogData.invoiceNumber){
+                next();
+            }else{
+                if(!session.conversationData.customerId){
+                    session.endDialog('Sorry no Customer selected.');
+                }
+                
+                //check if the user typed the start date
+                if(!session.dialogData.invoiceInitDate){
+                    builder.Prompts.time(session, "Please provide the initial Invoice Due Date:");
                 }else{
                     next();
                 }
             }
         },
         function (session, results, next) {
-            if(!session.conversationData.customerId){
-                session.endDialog('Sorry no Customer selected.');
-            }
-            
-            //check if the user typed the start date
-            if(!session.dialogData.invoiceInitDate){
-                builder.Prompts.time(session, "Please provide the initial Invoice Due Date:");
-            }else{
+            //if user provided invoice number, skip
+            if(session.dialogData.invoiceNumber){
                 next();
+            }else{
+                if(!session.dialogData.invoiceInitDate){
+                    session.dialogData.invoiceInitDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                }
+                    
+                //check if the user typed the final date
+                if(!session.dialogData.invoiceFinalDate){
+                    builder.Prompts.time(session, "Please provide the final Invoice Due Date:");
+                }else{
+                    next();
+                }
             }
         },
         function (session, results, next) {
-            if(!session.dialogData.invoiceInitDate){
-                session.dialogData.invoiceInitDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
-            }
-                
-            //check if the user typed the final date
-            if(!session.dialogData.invoiceFinalDate){
-                builder.Prompts.time(session, "Please provide the final Invoice Due Date:");
-            }else{
+            //if user provided invoice number, skip
+            if(session.dialogData.invoiceNumber){
                 next();
-            }
-        },
-        function (session, results) {
-            if(!session.dialogData.invoiceFinalDate){
-                session.dialogData.invoiceFinalDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
-            }
+            }else{
+                if(!session.dialogData.invoiceFinalDate){
+                    session.dialogData.invoiceFinalDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                }
 
-            session.send(`Getting invoices for:\n [b]Customer:[/b] ${session.conversationData.customerName} \n` +
-                    `[b]Dates:[/b] ${dateFormat(session.dialogData.invoiceInitDate,'mediumDate')} to ${dateFormat(session.dialogData.invoiceFinalDate,'mediumDate')}`);
+                session.send(`Getting invoices for:\n [b]Customer:[/b] ${session.conversationData.customerName} \n` +
+                        `[b]Dates:[/b] ${dateFormat(session.dialogData.invoiceInitDate,'mediumDate')} to ${dateFormat(session.dialogData.invoiceFinalDate,'mediumDate')}`);
 
-            var initDateISO = dateFormat(session.dialogData.invoiceInitDate,'isoDate');
-            var finalDateISO = dateFormat(session.dialogData.invoiceFinalDate,'isoDate');
+                var initDateISO = dateFormat(session.dialogData.invoiceInitDate,'isoDate');
+                var finalDateISO = dateFormat(session.dialogData.invoiceFinalDate,'isoDate');
 
-            //Search for invoices on Quickbooks API
-            searchInvoice(session, initDateISO, finalDateISO, (err, data)=>{
+                //Search for invoices on Quickbooks API
+                searchInvoice(session, initDateISO, finalDateISO, (err, data)=>{
                     //callback function
                     if(err){
                         session.endDialog("Sorry. There was an error trying to search for invoices.");
@@ -110,12 +135,12 @@ module.exports = function(bot) {
                                 var invoice = {
                                     id: data.Invoice[i].Id,
                                     docNumber: data.Invoice[i].DocNumber,
-                                    dueDate: data.Invoice[i].DueDate,
+                                    dueDate: data.Invoice[i].DueDate + " 00:00:00",
                                     totalAmt: data.Invoice[i].TotalAmt,
                                     balance: data.Invoice[i].Balance,
                                     status: _status
                                 };
-
+                                console.log("DueDate: "+invoice.dueDate);
                                 var invoiceDisplay= "[b]#"+invoice.docNumber+"[/b]  -  Due: "+dateFormat(invoice.dueDate,'mediumDate')+" | Total: "+formatter.format(invoice.totalAmt)+" | [color="+_statusColor+"]"+invoice.status+"[/color]";
 
                                 invoices[invoiceDisplay] = invoice;
@@ -132,27 +157,67 @@ module.exports = function(bot) {
                         }
                     }
                 });
+            }
+            
         },
         function (session, results) {
-            console.log("searchInvoice results:"+JSON.stringify(results));
-            var invoice = session.dialogData.invoices[results.response.entity];
-            session.send(`Getting Invoice #${invoice.docNumber}:`); 
-            
-            //Get specific invoice PDF on Quickbooks API
-            getInvoicePDF(session, invoice.id, (err, data)=>{
-                if(err){
-                    console.error(err);
-                    session.endDialog("Error to download the PDF");
-                }else{
-                    session.endDialog("There you go.");
-                }
-            });
+            var invoice;
+
+            //if user provided invoice number
+            if(session.dialogData.invoiceNumber){
+                var query = "Select * from Invoice where DocNumber = '"+session.dialogData.invoiceNumber+"'";
+
+                //get the invoice ID
+                qb.queryInvoice(session, query, (error, res)=>{
+                   if(error){
+                        if(error.code == 888 || error.code == 999){
+                            console.log(error.msg);
+                        }else if(error.code == 404){
+                            //token expired
+                            session.send("Sorry you need to login again into your account.");
+                            session.beginDialog('login');
+                        }
+                    } 
+                    else{
+                        if(res.Invoice.length > 0){
+                            var invoice = res.Invoice[0];
+
+                            // Get specific invoice PDF on Quickbooks API
+                            getInvoicePDF(session, invoice.Id, invoice.DocNumber, (err, data)=>{
+                                if(err){
+                                    console.error(err);
+                                    session.endDialog("Error to download the PDF");
+                                }else{
+                                    session.endDialog("There you go.");
+                                }
+                            });
+                        }else{
+                            session.endDialog("Sorry. I didn't find any invoice with that number.");
+                        }
+                    }
+                });
+            }
+            else{
+                console.log("searchInvoice results:"+JSON.stringify(results));
+                invoice = session.dialogData.invoices[results.response.entity];
+                session.send(`Getting Invoice #${invoice.docNumber}:`); 
+
+                //Get specific invoice PDF on Quickbooks API
+                getInvoicePDF(session, invoice.id, invoice.docNumber, (err, data)=>{
+                    if(err){
+                        console.error(err);
+                        session.endDialog("Error to download the PDF");
+                    }else{
+                        session.endDialog("There you go.");
+                    }
+                });
+            }            
         }
     ])
     .triggerAction(
         {
-            matches: 'searchInvoice',
-            confirmPrompt: "This will cancel your current request. Are you sure?"
+            matches: 'searchInvoice'
+            // confirmPrompt: "This will cancel your current request. Are you sure?"
         }
     )
     .cancelAction(
@@ -167,13 +232,13 @@ module.exports = function(bot) {
         {
             matches: 'startover'
         }
+    )
+    .endConversationAction(
+        "endSearchInvoice", "Ok. Goodbye.",
+        {
+            matches: 'goodbye'
+        }
     );
-    // .endConversationAction(
-    //     "endSearchInvooice", "Ok. Goodbye.",
-    //     {
-    //         matches: 'goodbye'
-    //     }
-    // )
     // .beginDialogAction(
     //     'changeCustomerAction', 'searchCustomer', 
     //     { 
@@ -225,11 +290,10 @@ function searchInvoice(session, startDate, finalDate, callback){
                 callback(null, res.QueryResponse);
             }
         });
-
 }
 
 //Call QuickBooks APIs for Search Invoice
-function getInvoicePDF(session, invoiceId, callback){
+function getInvoicePDF(session, invoiceId, invoiceDocNumber, callback){
 
     if(!session.userData.token.access_token || !session.userData.realmId || !invoiceId){
         console.error("Missing parameters for getInvoicePDF.");
@@ -238,7 +302,7 @@ function getInvoicePDF(session, invoiceId, callback){
 
     var _url = baseurl+"/v3/company/"+session.userData.realmId+"/invoice/"+invoiceId+"/pdf";
     var today = new Date();
-    var filename = invoiceId + "_invoice_" + today.getDate() + ".pdf";
+    var filename = invoiceDocNumber + "_invoice_" + today.getDate() + ".pdf";
     var file = fs.createWriteStream(__dirname+'/images/'+filename);
 
     request({
@@ -271,7 +335,7 @@ function sendInline(session, filePath, contentType, attachmentFileName) {
     });
 }
 
-
+var Intl = require('intl');
 // Create our number formatter.
 var formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',

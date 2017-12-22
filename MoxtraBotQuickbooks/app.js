@@ -44,6 +44,7 @@ bot.recognizer(recognizer);
 
 
 //load the dialogs
+require('./dialogs/updateInvoice.js')(bot);
 require('./dialogs/invoice.js')(bot);
 require('./dialogs/salesreceipt.js')(bot);
 require('./dialogs/estimates.js')(bot);

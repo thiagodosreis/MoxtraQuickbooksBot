@@ -121,6 +121,7 @@ function searchCustomer(session, customer_name, callback){
                 console.error('searchCustomer: API call failed:', error);
                 callback(error, null);
             }else{
+                console.log("searchCustomer: API call: response.statusCode: "+response.statusCode);
                 if(response.statusCode != 200){
                     
                     //reseting the memory token for the user

@@ -159,6 +159,11 @@ module.exports = function(bot) {
         {
             matches: 'startover'
         }
+    ).endConversationAction(
+        "endSearchInvooice", "Ok. Goodbye.",
+        {
+            matches: 'goodbye'
+        }
     );
 }
 
@@ -251,7 +256,7 @@ function sendInline(session, filePath, contentType, attachmentFileName) {
     });
 }
 
-
+var Intl = require('intl');
 // Create our number formatter.
 var formatter = new Intl.NumberFormat('en-US', {
   style: 'currency',

@@ -50,3 +50,4 @@ require('./dialogs/salesreceipt.js')(bot);
 require('./dialogs/estimates.js')(bot);
 require('./dialogs/customer.js')(bot);
 require('./dialogs/login.js')(bot);
+require('./dialogs/reports.js')(bot);

@@ -21,6 +21,7 @@
     "dotenv-extended": "^1.0.4",
     "express": "^4.16.2",
     "intl": "^1.2.5",
+    "pdfmake": "^0.1.35",
     "restify": "^4.3.0"
   }
 }

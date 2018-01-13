@@ -1,8 +1,14 @@
 var dateFormat = require('dateformat');
 var fs = require('fs');
 var util = require('util');
+var qb = require('./../qbapi.js');
 
 module.exports = function(bot) {
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    /// Dialog: searchEstimate 
+    /// Description: search estimates filtering by Due Date, Customer, Status and etc
+    ////////////////////////////////////////////////////////////////////////////////////////////////
     bot.dialog("searchEstimate",[
         function (session, args, next) {
             console.log("searchEstimate args:"+JSON.stringify(args));
@@ -16,7 +22,7 @@ module.exports = function(bot) {
                 }
                 //dates
                 var estimateDateRange = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.daterange');
-                if(estimateDueDateRange){
+                if(estimateDateRange){
                     session.dialogData.estimateInitDate = estimateDateRange.resolution.values[0].start;
                     session.dialogData.estimateFinalDate = estimateDateRange.resolution.values[0].end;
                 }
@@ -105,7 +111,7 @@ module.exports = function(bot) {
                                     status: data.Estimate[i].TxnStatus
                                 };
 
-                                var estimateDisplay= "[b]#"+estimate.docNumber+"[/b]  -  Date: "+dateFormat(estimate.txnDate,'mediumDate')+" | Total: "+formatter.format(estimate.totalAmt)+" | "+estimate.status+"";
+                                var estimateDisplay= "[b]#"+estimate.docNumber+"[/b]  -  Date: "+dateFormat(estimate.txnDate,'mediumDate')+" | Total: "+formatter.format(estimate.totalAmt)+" | "+estimate.status;//+"[mxButton='bot_postback' client_id='YzIxODgyMzN' payload='xxx']Create Invoice[/mxButton]";
 
                                 estimates[estimateDisplay] = estimate;
                             }
@@ -114,7 +120,6 @@ module.exports = function(bot) {
                             
                             session.send("I found "+data.maxResults+" estimate(s).");
                             builder.Prompts.choice(session, "Please select the estimate to see it:", estimates, { listStyle: 2 });
-                        
                         }else{
                             session.send("Sorry. I didn't find any estimate with the parameters.");
                             session.endDialog();
@@ -138,25 +143,132 @@ module.exports = function(bot) {
             });
         }
     ])
-    .triggerAction(
-        {
-            matches: 'searchEstimate',
-            confirmPrompt: "This will cancel your current request. Are you sure?"
-        }
-    )
+    .triggerAction({
+        matches: 'searchEstimate'
+    })
     .cancelAction(
-        "cancelSearchEstimate", "Type 'ok' to continue.", 
-        {
+        "cancelSearchEstimate", "Type 'ok' to continue.", {
             matches: /^cancel$/i,
             confirmPrompt: "This will cancel your search. Are you sure?"
-        }
-    )
+    })
     .reloadAction(
-        "restartSearchEstimate", "Ok. Let's start over.",
-        {
+        "restartSearchEstimate", "Ok. Let's start over.",{
             matches: 'startover'
+    })
+    .endConversationAction(
+        "endSearchInvooice", "Ok. Goodbye.",{
+            matches: 'goodbye'   
+    });
+
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    /// Dialog: promoteEstimate 
+    /// Description: convert an existing estimate to an invoice
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    bot.dialog("promoteEstimate",[
+        function (session, args, next) {
+            console.log("promoteEstimate args:"+JSON.stringify(args));
+
+            //getting arguments typed by the user
+            if(args && args.intent && args.intent.entities && args.intent.entities.length > 0){
+                //estimate number
+                var estimateNumber = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceNumber');
+                if (estimateNumber){
+                    session.dialogData.estimateNumber = estimateNumber.entity;
+                }
+            }
+
+            //check if there is a token
+            if(!session.userData.token){
+                session.beginDialog("login");    
+            }else{
+                next();
+            }
+
+            console.log("session.dialogData:"+JSON.stringify(session.dialogData));
+        },
+        function (session, results, next) {
+            //not logged in
+            console.log("results:"+JSON.stringify(results));
+            if(!results.auth && !session.userData.token){
+                session.send("Sorry, no authorization");
+                session.endConversation();
+            }
+            // session.send("Ok I'll create an invoice for the estimate #"+session.dialogData.estimateNumber);
+
+            if(session.dialogData.estimateNumber){
+                var query = "Select * from Estimate Where DocNumber = '"+session.dialogData.estimateNumber+"'";
+
+                //get the invoice ID
+                qb.queryQuickbooks(session, query, (error, res)=>{
+                   if(error){
+                        if(error.code == 888 || error.code == 999){
+                            console.log(error.msg);
+                        }else if(error.code == 404){
+                            //token expired
+                            session.send("Sorry you need to login again into your account.");
+                            session.beginDialog('login');
+                        }
+                    } 
+                    else{
+                        console.log("res.Estimate:"+JSON.stringify(res.Estimate));
+                        if(res.Estimate && res.Estimate.length > 0){
+                            var estimate = res.Estimate[0];
+
+                            // Get Estimate infor and create the Invoice Obj
+                            var invoiceFields = {
+                                Line: estimate.Line,
+                                CustomerRef: estimate.CustomerRef,
+                                LinkedTxn: [{
+                                    TxnId: estimate.Id,
+                                    TxnType: "Estimate"
+                                }]
+                            };
+
+                            console.log("invoiceFields:"+JSON.stringify(invoiceFields));
+                            
+                            //create the invoice in QuickBooks
+                            qb.createInvoice(session, invoiceFields, (error, invoice)=>{
+                                if(error){
+                                    if(error.code == 888 || error.code == 999){
+                                        console.log(error.msg);
+                                    }else if(error.code == 404){
+                                        //token expired
+                                        session.send("Sorry you need to login again into your account.");
+                                        session.beginDialog('login');
+                                    }
+                                }
+                                else{
+                                    session.send("Estimate approved and a new Invoice #"+invoice.Invoice.DocNumber+" is ready.");
+                                    // builder.Prompts.confirm(session, "Do you want to see this invoice?");
+                                }
+                            });
+
+                            // session.send("TxnDate: "+estimate.TxnDate+" - TxnStatus: "+estimate.TxnStatus+" - TotalAmt: "+estimate.TotalAmt);
+                        }else{
+                            session.endDialog("Sorry. I didn't find any invoice with that number.");
+                        }
+                    }
+                });
+            }
         }
-    );
+    ])
+    .triggerAction({
+            matches: 'promoteEstimate'
+    })
+    .cancelAction(
+        "cancelPromoteEstimate", {
+            matches: /^cancel$/i,
+            confirmPrompt: "This will cancel any usaved action. Are you sure?"
+    })
+    .reloadAction(
+        "restartPromoteEstimate", "Ok. Let's start over.",{
+            matches: 'startover'
+    })
+    .endConversationAction(
+        "endPromoteEstimate", "Ok. Goodbye.",{
+            matches: 'goodbye'
+    });
 }
 
 

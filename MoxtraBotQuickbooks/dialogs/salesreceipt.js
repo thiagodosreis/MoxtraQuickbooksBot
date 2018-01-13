@@ -1,6 +1,7 @@
 var dateFormat = require('dateformat');
 var fs = require('fs');
 var util = require('util');
+var qb = require('./../qbapi.js');
 
 module.exports = function(bot) {
     bot.dialog("searchReceipt",[
@@ -165,6 +166,117 @@ module.exports = function(bot) {
             matches: 'goodbye'
         }
     );
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    /// Dialog: promoteInvoice 
+    /// Description: generate a Sales Receipt for an Invoice
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    bot.dialog("promoteInvoice",[
+        function (session, args, next) {
+            console.log("promoteInvoice args:"+JSON.stringify(args));
+
+            //getting arguments typed by the user
+            if(args && args.intent && args.intent.entities && args.intent.entities.length > 0){
+                //invoice number
+                var invoiceNumber = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceNumber');
+                if (invoiceNumber){
+                    session.dialogData.invoiceNumber = invoiceNumber.entity;
+                }
+            }
+
+            //check if there is a token
+            if(!session.userData.token){
+                session.beginDialog("login");    
+            }else{
+                next();
+            }
+
+            console.log("session.dialogData:"+JSON.stringify(session.dialogData));
+        },
+        function (session, results, next) {
+            //not logged in
+            console.log("results:"+JSON.stringify(results));
+            if(!results.auth && !session.userData.token){
+                session.send("Sorry, no authorization");
+                session.endConversation();
+            }
+            session.send("Ok I'll create a Sales Receipt for the invoice #"+session.dialogData.invoiceNumber);
+
+            if(session.dialogData.invoiceNumber){
+                var query = "Select * from Invoice Where DocNumber = '"+session.dialogData.invoiceNumber+"'";
+
+                //get the invoice details
+                qb.queryQuickbooks(session, query, (error, res)=>{
+                   if(error){
+                        if(error.code == 888 || error.code == 999){
+                            console.log(error.msg);
+                        }else if(error.code == 404){
+                            //token expired
+                            session.send("Sorry you need to login again into your account.");
+                            session.beginDialog('login');
+                        }
+                    } 
+                    else{
+                        console.log("res.Invoice:"+JSON.stringify(res.Invoice));
+                        if(res.Invoice && res.Invoice.length > 0){
+                            var invoice = res.Invoice[0];
+
+
+                            //Check if the Invoice is Paid before generates Sales Receipt
+                            if(invoice.Balance != '0'){
+                                session.endDialog("Sorry, I can't generate a Sales Receipt because the invoice "+invoice.DocNumber+" is not Paid.");
+                            }
+                            else{
+                                // Get Invoice info and create the Sales Receipt Obj
+                                var invoiceFields = {
+                                    Line: invoice.Line,
+                                    CustomerRef: invoice.CustomerRef
+                                };
+
+                                console.log("invoiceFields:"+JSON.stringify(invoiceFields));
+                                
+                                //create the invoice in QuickBooks
+                                qb.createReceipt(session, invoiceFields, (error, receipt)=>{
+                                    if(error){
+                                        if(error.code == 888 || error.code == 999){
+                                            console.log(error.msg);
+                                        }else if(error.code == 404){
+                                            //token expired
+                                            session.send("Sorry you need to login again into your account.");
+                                            session.beginDialog('login');
+                                        }
+                                    }
+                                    else{
+                                        session.send("Sales Receipt #"+receipt.SalesReceipt.DocNumber+" is ready.[/b]");
+                                        // builder.Prompts.confirm(session, "Do you want to see this invoice?");
+                                    }
+                                });
+                            }
+
+                        }else{
+                            session.endDialog("Sorry. I didn't find any invoice with that number.");
+                        }
+                    }
+                });
+            }
+        }
+    ])
+    .triggerAction({
+            matches: 'promoteInvoice'
+    })
+    .cancelAction(
+        "cancelPromoteInvoice", {
+            matches: /^cancel$/i,
+            confirmPrompt: "This will cancel any usaved action. Are you sure?"
+    })
+    .reloadAction(
+        "restartPromoteInvoice", "Ok. Let's start over.",{
+            matches: 'startover'
+    })
+    .endConversationAction(
+        "endPromoteInvoice", "Ok. Goodbye.",{
+            matches: 'goodbye'
+    });
 }
 
 

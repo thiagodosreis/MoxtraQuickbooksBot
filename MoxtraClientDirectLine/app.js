@@ -50,6 +50,13 @@ bot.on('bot_uninstalled', (chat) => {
   console.log(`Bot uninstalled on ${binder_id}`);
 });
 
+bot.on('bot_postback', (chat) => {
+  const binder_id = chat.binder_id;
+  console.log(`Bot bot_postback on ${binder_id}`);
+});
+
+
+
 
 // Express Server
 const app = express();
@@ -369,6 +376,8 @@ function sendMessagesMoxtra(activities, chat) {
         // Ignore own messages
         activities = activities.filter(function (m) { return m.from.channel !== "Moxtra_Direct_Line" });
         if (activities.length) {
+
+            console.log("Before getting Moxtra Token");
 
             // obtain Moxtra access_token    
             bot.getAccessToken(chat.client_id, chat.org_id, function(error, token) {

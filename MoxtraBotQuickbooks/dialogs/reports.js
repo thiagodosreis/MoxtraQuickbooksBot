@@ -36,7 +36,7 @@ module.exports = function(bot) {
             }
             else{
                 //Search for customer
-                if (!session.conversationData.customerId || !session.dialogData.customerName){
+                if (!session.conversationData.customerId || session.dialogData.customerName){
                     var args= {customerName: session.dialogData.customerName};
                     session.beginDialog('searchCustomer',args);
                 }else{
@@ -140,16 +140,14 @@ module.exports = function(bot) {
 
                             var pdfDoc = printer.createPdfKitDocument(docDefinition);
                             
-                            //save the pdf
+                            //save the pdf in the Server
                             pdfDoc.pipe(fs.createWriteStream('pdfs/tables.pdf')).on('finish',function(){
                                 session.send("PDF Report generated.");
+
+                                //send the pdf to Moxtra
+                                sendInline(session, 'pdfs/tables.pdf', 'application/pdf', 'tables.pdf');
                             });
                             pdfDoc.end();
-
-                            //send to the channel and Moxtra
-
-
-                            
                         }
                         else{
                             session.endDialog("Sorry there is no report available for this customer.");

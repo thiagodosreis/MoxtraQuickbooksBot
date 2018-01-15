@@ -199,7 +199,7 @@ module.exports = function(bot) {
             if(session.dialogData.estimateNumber){
                 var query = "Select * from Estimate Where DocNumber = '"+session.dialogData.estimateNumber+"'";
 
-                //get the invoice ID
+                //get the estimate info
                 qb.queryQuickbooks(session, query, (error, res)=>{
                    if(error){
                         if(error.code == 888 || error.code == 999){
@@ -215,36 +215,41 @@ module.exports = function(bot) {
                         if(res.Estimate && res.Estimate.length > 0){
                             var estimate = res.Estimate[0];
 
-                            // Get Estimate infor and create the Invoice Obj
-                            var invoiceFields = {
-                                Line: estimate.Line,
-                                CustomerRef: estimate.CustomerRef,
-                                LinkedTxn: [{
-                                    TxnId: estimate.Id,
-                                    TxnType: "Estimate"
-                                }]
-                            };
+                            //check for estimate status
+                            if(estimate.TxnStatus == "Closed" || estimate.TxnStatus == "Rejected"){
+                                session.endDialog("Sorry the Estimate #"+estimate.DocNumber+" is [b][color=red]"+estimate.TxnStatus+"[/color][/b].");
+                            }else{
+                                // Get Estimate infor and create the Invoice Obj
+                                var invoiceFields = {
+                                    Line: estimate.Line,
+                                    CustomerRef: estimate.CustomerRef,
+                                    LinkedTxn: [{
+                                        TxnId: estimate.Id,
+                                        TxnType: "Estimate"
+                                    }]
+                                };
 
-                            console.log("invoiceFields:"+JSON.stringify(invoiceFields));
-                            
-                            //create the invoice in QuickBooks
-                            qb.createInvoice(session, invoiceFields, (error, invoice)=>{
-                                if(error){
-                                    if(error.code == 888 || error.code == 999){
-                                        console.log(error.msg);
-                                    }else if(error.code == 404){
-                                        //token expired
-                                        session.send("Sorry you need to login again into your account.");
-                                        session.beginDialog('login');
+                                console.log("invoiceFields:"+JSON.stringify(invoiceFields));
+                                
+                                //create the invoice in QuickBooks
+                                qb.createInvoice(session, invoiceFields, (error, invoice)=>{
+                                    if(error){
+                                        if(error.code == 888 || error.code == 999){
+                                            console.log(error.msg);
+                                        }else if(error.code == 404){
+                                            //token expired
+                                            session.send("Sorry you need to login again into your account.");
+                                            session.beginDialog('login');
+                                        }
                                     }
-                                }
-                                else{
-                                    session.send("Estimate approved and a new Invoice #"+invoice.Invoice.DocNumber+" is ready.");
-                                    // builder.Prompts.confirm(session, "Do you want to see this invoice?");
-                                }
-                            });
+                                    else{
+                                        session.send("Estimate approved and a new Invoice #"+invoice.Invoice.DocNumber+" is ready.");
+                                        // builder.Prompts.confirm(session, "Do you want to see this invoice?");
+                                    }
+                                });
 
-                            // session.send("TxnDate: "+estimate.TxnDate+" - TxnStatus: "+estimate.TxnStatus+" - TotalAmt: "+estimate.TotalAmt);
+                                // session.send("TxnDate: "+estimate.TxnDate+" - TxnStatus: "+estimate.TxnStatus+" - TotalAmt: "+estimate.TotalAmt);
+                            }
                         }else{
                             session.endDialog("Sorry. I didn't find any invoice with that number.");
                         }

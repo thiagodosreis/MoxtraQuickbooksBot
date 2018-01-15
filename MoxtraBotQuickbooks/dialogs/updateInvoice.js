@@ -68,7 +68,7 @@ module.exports = function(bot) {
             //search for the invoice by Doc Number
             var query = "Select * from Invoice where DocNumber = '"+session.dialogData.invoiceNumber+"'";
 
-            qb.queryInvoice(session, query, (error, res)=>{
+            qb.queryQuickbooks(session, query, (error, res)=>{
 
                 if(error){
                     if(error.code == 888 || error.code == 999){

@@ -247,7 +247,7 @@ module.exports = function(bot) {
                                         }
                                     }
                                     else{
-                                        session.send("Sales Receipt #"+receipt.SalesReceipt.DocNumber+" is ready.[/b]");
+                                        session.send("Sales Receipt #"+receipt.SalesReceipt.DocNumber+" is ready.");
                                         // builder.Prompts.confirm(session, "Do you want to see this invoice?");
                                     }
                                 });

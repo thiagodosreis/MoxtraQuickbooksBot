@@ -68,6 +68,7 @@ module.exports = {
                     }
 
                     var res = JSON.parse(body);
+                    //callback(null, res.QueryResponse);
                     callback(null, res);
                 }
             });

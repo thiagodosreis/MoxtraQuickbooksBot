@@ -3,6 +3,7 @@ var fs = require('fs');
 var util = require('util');
 var qb = require('./../qbapi.js');
 
+
 module.exports = function(bot) {
     bot.dialog("searchInvoice",[
         function (session, args, next) {

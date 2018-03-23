@@ -28,14 +28,13 @@ server.get('/api/test', (req, res) => {
 });
 
 
-
 var inMemoryStorage = new builder.MemoryBotStorage();
 
 var bot = new builder.UniversalBot(connector, [
     function(session){
         session.send("Welcome to Moxtra Quickbooks Bot!");
     }
-]).set('storage', inMemoryStorage); // Register in-memory storage 
+]).set('storage', inMemoryStorage); // Register in-memory storage
 
 
 // Including LUIS

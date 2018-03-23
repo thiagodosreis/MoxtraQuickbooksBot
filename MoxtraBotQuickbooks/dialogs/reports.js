@@ -2,6 +2,8 @@ var dateFormat = require('dateformat');
 var fs = require('fs');
 var util = require('util');
 var qb = require('./../qbapi.js');
+// import * as qb from './../qbapi.js'; //ES6 syntax
+
 var pdfmake = require('pdfmake');
 
 module.exports = function(bot) {

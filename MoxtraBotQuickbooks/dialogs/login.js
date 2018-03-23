@@ -1,7 +1,11 @@
 module.exports = function(bot) {
     bot.dialog("login",[
         function (session, args, next) {
-            if(!session.userData.token && !session.message.token){
+            console.log("session.userData.token:"+session.userData.token);
+            console.log("session.message.token:"+session.message.token);
+
+            // if(!session.userData.token && !session.message.token){
+            if(!session.message.token){
                 session.send(new builder.Message(session).addAttachment(
                     {
                         contentType: "application/moxtra.button",

@@ -1,7 +1,6 @@
-var dateFormat = require('dateformat');
-var fs = require('fs');
-var util = require('util');
-var qb = require('./../qbapi.js');
+const dateFormat = require('dateformat');
+const qb = require('./../modules/qbapi');
+const Token = require('./../modules/token');
 
 module.exports = function(bot) {
 
@@ -31,8 +30,9 @@ module.exports = function(bot) {
                 // session.dialogData.estimateStatus = builder.EntityRecognizer.findEntity(args.intent.entities, 'EstimateStatus');
             }
 
+
             //check if there is a token
-            if(!session.userData.token){
+            if(!Token.getToken(session.message.user.id)){
                 session.beginDialog("login");    
             }else{
                 next();
@@ -43,7 +43,7 @@ module.exports = function(bot) {
         function (session, results, next) {
             //not logged in
             console.log("results:"+JSON.stringify(results));
-            if(!results.auth && !session.userData.token){
+            if(!results.auth && !Token.getToken(session.message.user.id)){
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
@@ -92,40 +92,47 @@ module.exports = function(bot) {
             var initDateISO = dateFormat(session.dialogData.estimateInitDate,'isoDate');
             var finalDateISO = dateFormat(session.dialogData.estimateFinalDate,'isoDate');
 
-            //Search for estimates on Quickbooks API
-            searchEstimate(session, initDateISO, finalDateISO, (err, data)=>{
-                    //callback function
-                    if(err){
-                        session.endDialog("Sorry. There was an error trying to search for estimates.");
-                        console.error(err);
-                    }else{
-                        if(data.Estimate){
-                            var estimates = {};
+            const query = "SELECT * FROM Estimate WHERE  TxnDate >= '"+initDateISO+"' and TxnDate <= '"+finalDateISO+"' and CustomerRef = '"+session.conversationData.customerId+"'";
 
-                            for(var i=0; i<= data.Estimate.length-1; i++){
-                                var estimate = {
-                                    id: data.Estimate[i].Id,
-                                    docNumber: data.Estimate[i].DocNumber,
-                                    txnDate: data.Estimate[i].TxnDate,
-                                    totalAmt: data.Estimate[i].TotalAmt,
-                                    status: data.Estimate[i].TxnStatus
-                                };
+            //Search for invoices on Quickbooks API
+            qb.queryQuickbooks(session, query, (error, data)=>{
+                if(error){
+                     if(error.code == 888 || error.code == 999){
+                         console.log(error.msg);
+                     }else if(error.code == 404){
+                         //token expired
+                         session.send("Sorry you need to login again into your account.");
+                         session.beginDialog('login');
+                     }
+                 } 
+                 else{
+                    if(data.Estimate){
+                        var estimates = {};
 
-                                var estimateDisplay= "[b]#"+estimate.docNumber+"[/b]  -  Date: "+dateFormat(estimate.txnDate,'mediumDate')+" | Total: "+formatter.format(estimate.totalAmt)+" | "+estimate.status;//+"[mxButton='bot_postback' client_id='YzIxODgyMzN' payload='xxx']Create Invoice[/mxButton]";
+                        for(var i=0; i<= data.Estimate.length-1; i++){
+                            var estimate = {
+                                id: data.Estimate[i].Id,
+                                docNumber: data.Estimate[i].DocNumber,
+                                txnDate: data.Estimate[i].TxnDate,
+                                totalAmt: data.Estimate[i].TotalAmt,
+                                status: data.Estimate[i].TxnStatus
+                            };
 
-                                estimates[estimateDisplay] = estimate;
-                            }
-                            session.dialogData.estimates = estimates;
-                            console.log("estimates: "+JSON.stringify(session.dialogData.estimates));
-                            
-                            session.send("I found "+data.maxResults+" estimate(s).");
-                            builder.Prompts.choice(session, "Please select the estimate to see it:", estimates, { listStyle: 2 });
-                        }else{
-                            session.send("Sorry. I didn't find any estimate with the parameters.");
-                            session.endDialog();
+                            var estimateDisplay= "[b]#"+estimate.docNumber+"[/b]  -  Date: "+dateFormat(estimate.txnDate,'mediumDate')+" | Total: "+formatter.format(estimate.totalAmt)+" | "+estimate.status;//+"[mxButton='bot_postback' client_id='YzIxODgyMzN' payload='xxx']Create Invoice[/mxButton]";
+
+                            estimates[estimateDisplay] = estimate;
                         }
+                        session.dialogData.estimates = estimates;
+                        console.log("estimates: "+JSON.stringify(session.dialogData.estimates));
+                        
+                        session.send("I found "+data.maxResults+" estimate(s).");
+                        builder.Prompts.choice(session, "Please select the estimate to see it:", estimates, { listStyle: 2 });
+                    }else{
+                        session.send("Sorry. I didn't find any estimate with the parameters.");
+                        session.endDialog();
                     }
-                });
+                 }
+            });
         },
         function (session, results) {
             console.log("searchEstimate results:"+JSON.stringify(results));
@@ -133,7 +140,7 @@ module.exports = function(bot) {
             session.send(`Getting Estimate #${estimate.docNumber}:`); 
             
             //Get specific estimate PDF on Quickbooks API
-            getEstimatePDF(session, estimate.id, (err, data)=>{
+            qb.getPDF(session, estimate.id, estimate.docNumber, "estimate", (err, data)=>{
                 if(err){
                     console.error(err);
                     session.endDialog("Error to download the PDF");
@@ -179,7 +186,7 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            if(!session.userData.token){
+            if(!Token.getToken(session.message.user.id)){
                 session.beginDialog("login");    
             }else{
                 next();
@@ -190,11 +197,10 @@ module.exports = function(bot) {
         function (session, results, next) {
             //not logged in
             console.log("results:"+JSON.stringify(results));
-            if(!results.auth && !session.userData.token){
+            if(!results.auth && !Token.getToken(session.message.user.id)){
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
-            // session.send("Ok I'll create an invoice for the estimate #"+session.dialogData.estimateNumber);
 
             if(session.dialogData.estimateNumber){
                 var query = "Select * from Estimate Where DocNumber = '"+session.dialogData.estimateNumber+"'";
@@ -232,7 +238,7 @@ module.exports = function(bot) {
                                 console.log("invoiceFields:"+JSON.stringify(invoiceFields));
                                 
                                 //create the invoice in QuickBooks
-                                qb.createInvoice(session, invoiceFields, (error, invoice)=>{
+                                qb.updateQuickBooks(session, invoiceFields, "invoice", (error, invoice)=>{
                                     if(error){
                                         if(error.code == 888 || error.code == 999){
                                             console.log(error.msg);
@@ -247,8 +253,6 @@ module.exports = function(bot) {
                                         // builder.Prompts.confirm(session, "Do you want to see this invoice?");
                                     }
                                 });
-
-                                // session.send("TxnDate: "+estimate.TxnDate+" - TxnStatus: "+estimate.TxnStatus+" - TotalAmt: "+estimate.TotalAmt);
                             }
                         }else{
                             session.endDialog("Sorry. I didn't find any invoice with that number.");
@@ -275,102 +279,3 @@ module.exports = function(bot) {
             matches: 'goodbye'
     });
 }
-
-
-//********* Quickbooks API Call ***************//
-
-//Call QuickBooks APIs for Search Estimate
-function searchEstimate(session, startDate, finalDate, callback){
-
-    if(!session.userData.token.access_token || !session.userData.realmId || !session.conversationData.customerId || !startDate || !finalDate){
-        console.error("Missing parameters for searchEstimate.");
-        //begin dialog for login again
-        session.message.token = null;
-        session.beginDialog("login");
-        callback("Missing parameters for searchEstimate.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+"/query?query="+
-        "SELECT * FROM Estimate WHERE  TxnDate >= '"+startDate+"' and TxnDate <= '"+finalDate+"' and CustomerRef = '"+session.conversationData.customerId+"'";
-
-    request({
-            method: 'get',
-            url: _url,
-            headers: {'Authorization': 'Bearer ' + session.userData.token.access_token,
-                        'Accept': 'application/json'}
-        }, function (error, response, body){
-            if (error) {
-                console.error('searchEstimate: API call failed:', error);
-                callback(error, null);
-            }else{
-                if(response.statusCode != 200){
-                    //reseting the memory token for the user
-                    session.userData.token = null;
-
-                    //begin dialog for login again
-                    session.beginDialog("login");
-
-                    callback("searchEstimate: API call failed: UNAUTHORIZED. TOKEN EXPIRED!", null);
-                    return;
-                }
-
-                var res = JSON.parse(body);
-                // console.log("Got the Estimates: "+JSON.stringify(res.QueryResponse));
-                callback(null, res.QueryResponse);
-            }
-        });
-
-}
-
-//Call QuickBooks APIs for Search Estimate
-function getEstimatePDF(session, estimateId, callback){
-
-    if(!session.userData.token.access_token || !session.userData.realmId || !estimateId){
-        console.error("Missing parameters for getEstimatePDF.");
-        callback("Missing parameters for getEstimatePDF.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+"/estimate/"+estimateId+"/pdf";
-    var today = new Date();
-    var filename = estimateId + "_estimate_" + today.getDate() + ".pdf";
-    var file = fs.createWriteStream(__dirname+'/images/'+filename);
-
-    request({
-            method: 'get',
-            url: _url,
-            headers: {'Authorization': 'Bearer ' + session.userData.token.access_token,
-                        'Content-Type': 'application/pdf'}
-        }).on('error', (err)=>{
-            console.error('getEstimatePDF: API call failed:', error);
-            callback(error, null);
-        }).pipe(file).on('close',()=>{
-            sendInline(session, __dirname+'/images/'+filename, 'application/pdf', filename);
-        });
-}
-
-// Sends attachment inline in base64
-function sendInline(session, filePath, contentType, attachmentFileName) {
-    fs.readFile(filePath, function (err, data) {
-        if (err) {
-            return session.send('Oops. Error reading file.');
-        }
-        var base64 = Buffer.from(data).toString('base64');
-        var msg = new builder.Message(session)
-            .addAttachment({
-                contentUrl: util.format('data:%s;base64,%s', contentType, base64),
-                contentType: contentType,
-                name: attachmentFileName
-            });
-        session.endDialog(msg);
-    });
-}
-
-var Intl = require('intl');
-// Create our number formatter.
-var formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2
-});
-
-

@@ -1,8 +1,7 @@
-var dateFormat = require('dateformat');
-var fs = require('fs');
-var util = require('util');
-var qb = require('./../qbapi.js');
-// import * as qb from './../qbapi.js'; //ES6 syntax
+const dateFormat = require('dateformat');
+const qb = require('./../modules/qbapi');
+const Token = require('./../modules/token');
+const fs = require('fs');
 
 var pdfmake = require('pdfmake');
 
@@ -20,8 +19,8 @@ module.exports = function(bot) {
                 }
             }
 
-            //check if there is a ## Quick Book Token ##
-            if(!session.userData.token){
+            //check if there is a token
+            if(!Token.getToken(session.message.user.id)){
                 session.beginDialog("login");    
             }else{
                 next();
@@ -32,7 +31,7 @@ module.exports = function(bot) {
         function (session, results, next) {
             //not logged in
             console.log("results:"+JSON.stringify(results));
-            if(!results.auth && !session.userData.token){
+            if(!results.auth && !Token.getToken(session.message.user.id)){
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
@@ -50,8 +49,11 @@ module.exports = function(bot) {
             if(!session.conversationData.customerId){
                 session.endDialog('Sorry no Customer selected.');
             }else{
+
+                const reportUrl = "CustomerBalanceDetail?customer="+session.conversationData.customerId;
+
                 //get the json for the report
-                getCustBalanceReport(session, (err, result)=>{
+                qb.getReports(session, reportUrl, (err, result)=>{
                     if(err){
                         console.log('Error getting Report Data for Customer Balance Detail: '+err);
                         session.endDialog("Sorry I couldn't get the Report data from Quickbooks.");
@@ -147,7 +149,7 @@ module.exports = function(bot) {
                                 session.send("PDF Report generated.");
 
                                 //send the pdf to Moxtra
-                                sendInline(session, 'pdfs/tables.pdf', 'application/pdf', 'tables.pdf');
+                                qb.sendInline(session, 'pdfs/tables.pdf', 'application/pdf', 'tables.pdf');
                             });
                             pdfDoc.end();
                         }
@@ -176,86 +178,6 @@ module.exports = function(bot) {
     });
 }
 
-
-//********* Quickbooks API Call ***************//
-
-// Gets the JSON data for the Report: Customer Balance Detail
-function getCustBalanceReport(session, callback){
-
-    if(!session.userData.token.access_token || !session.userData.realmId || !session.conversationData.customerId){
-        //clean the token obj
-        session.message.token = null;
-
-        //begin dialog for login again
-        session.beginDialog("login");
-
-        //send the error msg back to the call
-        console.error("Missing parameters for getCustBalanceReport.");
-        callback("Missing parameters for getCustBalanceReport.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+"/reports/CustomerBalanceDetail?customer="+session.conversationData.customerId;
-
-    qb.readQuickbooks(_url, session.userData.token.access_token, (err, response)=>{
-        if(err){
-            callback(err,"");
-        }
-        else{
-            callback("", response);
-        }
-    });
-}
-
-//Call QuickBooks APIs for Search Invoice
-function getReportPDF(session, invoiceId, invoiceDocNumber, callback){
-
-    if(!session.userData.token.access_token || !session.userData.realmId || !invoiceId){
-        console.error("Missing parameters for getInvoicePDF.");
-        callback("Missing parameters for getInvoicePDF.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+"/invoice/"+invoiceId+"/pdf";
-    var today = new Date();
-    var filename = invoiceDocNumber + "_invoice_" + today.getDate() + ".pdf";
-    var file = fs.createWriteStream(__dirname+'/images/'+filename);
-
-    request({
-            method: 'get',
-            url: _url,
-            headers: {'Authorization': 'Bearer ' + session.userData.token.access_token,
-                        'Content-Type': 'application/pdf'}
-        }).on('error', (err)=>{
-            console.error('getInvoicePDF: API call failed:', error);
-            callback(error, null);
-        }).pipe(file).on('close',()=>{
-            sendInline(session, __dirname+'/images/'+filename, 'application/pdf', filename);
-        });
-}
-
-// Sends attachment inline in base64
-function sendInline(session, filePath, contentType, attachmentFileName) {
-    fs.readFile(filePath, function (err, data) {
-        if (err) {
-            return session.send('Oops. Error reading file.');
-        }
-        var base64 = Buffer.from(data).toString('base64');
-        var msg = new builder.Message(session)
-            .addAttachment({
-                contentUrl: util.format('data:%s;base64,%s', contentType, base64),
-                contentType: contentType,
-                name: attachmentFileName
-            });
-        session.endDialog(msg);
-    });
-}
-
-var Intl = require('intl');
-// Create our number formatter.
-var formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2
-});
 
 const numberWithCommas = (x) => {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");

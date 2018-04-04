@@ -1,7 +1,6 @@
-var dateFormat = require('dateformat');
-var fs = require('fs');
-var util = require('util');
-var qb = require('./../qbapi.js');
+const dateFormat = require('dateformat');
+const qb = require('./../modules/qbapi');
+const Token = require('./../modules/token');
 
 
 module.exports = function(bot) {
@@ -38,8 +37,8 @@ module.exports = function(bot) {
                 //session.dialogData.invoiceStatus = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceStatus');
             }
 
-            //check if there is a ## Quick Book Token ##
-            if(!session.userData.token){
+            //check if there is a token
+            if(!Token.getToken(session.message.user.id)){
                 session.beginDialog("login");    
             }else{
                 next();
@@ -50,7 +49,7 @@ module.exports = function(bot) {
         function (session, results, next) {
             //not logged in
             console.log("results:"+JSON.stringify(results));
-            if(!results.auth && !session.userData.token){
+            if(!results.auth && !Token.getToken(session.message.user.id)){
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
@@ -216,7 +215,7 @@ module.exports = function(bot) {
                             var invoice = res.Invoice[0];
 
                             // Get specific invoice PDF on Quickbooks API
-                            getInvoicePDF(session, invoice.Id, invoice.DocNumber, (err, data)=>{
+                            qb.getPDF(session, invoice.Id, invoice.DocNumber, "invoice", (err, data)=>{
                                 if(err){
                                     console.error(err);
                                     session.endDialog("Error to download the PDF");
@@ -236,7 +235,7 @@ module.exports = function(bot) {
                 session.send(`Getting Invoice #${invoice.docNumber}:`); 
 
                 //Get specific invoice PDF on Quickbooks API
-                getInvoicePDF(session, invoice.id, invoice.docNumber, (err, data)=>{
+                qb.getPDF(session, invoice.id, invoice.docNumber, "invoice", (err, data)=>{
                     if(err){
                         console.error(err);
                         session.endDialog("Error to download the PDF");
@@ -287,101 +286,3 @@ module.exports = function(bot) {
         }
     ]);
 }
-
-
-//********* Quickbooks API Call ***************//
-
-//Call QuickBooks APIs for Search Invoice
-function searchInvoice(session, startDate, finalDate, callback){
-
-    if(!session.userData.token.access_token || !session.userData.realmId || !session.conversationData.customerId || !startDate || !finalDate){
-        console.error("Missing parameters for searchInvoice.");
-        //begin dialog for login again
-        session.message.token = null;
-        session.beginDialog("login");
-        callback("Missing parameters for searchInvoice.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+"/query?query="+
-        "SELECT * FROM Invoice WHERE  DueDate >= '"+startDate+"' and DueDate <= '"+finalDate+"' and CustomerRef = '"+session.conversationData.customerId+"'";
-
-    request({
-            method: 'get',
-            url: _url,
-            headers: {'Authorization': 'Bearer ' + session.userData.token.access_token,
-                        'Accept': 'application/json'}
-        }, function (error, response, body){
-            if (error) {
-                console.error('searchInvoice: API call failed:', error);
-                callback(error, null);
-            }else{
-                if(response.statusCode != 200){
-                    //reseting the memory token for the user
-                    session.userData.token = null;
-
-                    //begin dialog for login again
-                    session.beginDialog("login");
-
-                    callback("searchInvoice: API call failed: UNAUTHORIZED. TOKEN EXPIRED!", null);
-                    return;
-                }
-
-                var res = JSON.parse(body);
-                // console.log("Got the Invoices: "+JSON.stringify(res.QueryResponse));
-                callback(null, res.QueryResponse);
-            }
-        });
-}
-
-//Call QuickBooks APIs for Search Invoice
-function getInvoicePDF(session, invoiceId, invoiceDocNumber, callback){
-
-    if(!session.userData.token.access_token || !session.userData.realmId || !invoiceId){
-        console.error("Missing parameters for getInvoicePDF.");
-        callback("Missing parameters for getInvoicePDF.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+"/invoice/"+invoiceId+"/pdf";
-    var today = new Date();
-    var filename = invoiceDocNumber + "_invoice_" + today.getDate() + ".pdf";
-    var file = fs.createWriteStream(__dirname+'/images/'+filename);
-
-    request({
-            method: 'get',
-            url: _url,
-            headers: {'Authorization': 'Bearer ' + session.userData.token.access_token,
-                        'Content-Type': 'application/pdf'}
-        }).on('error', (err)=>{
-            console.error('getInvoicePDF: API call failed:', error);
-            callback(error, null);
-        }).pipe(file).on('close',()=>{
-            sendInline(session, __dirname+'/images/'+filename, 'application/pdf', filename);
-        });
-}
-
-// Sends attachment inline in base64
-function sendInline(session, filePath, contentType, attachmentFileName) {
-    fs.readFile(filePath, function (err, data) {
-        if (err) {
-            return session.send('Oops. Error reading file.');
-        }
-        var base64 = Buffer.from(data).toString('base64');
-        var msg = new builder.Message(session)
-            .addAttachment({
-                contentUrl: util.format('data:%s;base64,%s', contentType, base64),
-                contentType: contentType,
-                name: attachmentFileName
-            });
-        session.endDialog(msg);
-    });
-}
-
-var Intl = require('intl');
-// Create our number formatter.
-var formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2
-});
-
-

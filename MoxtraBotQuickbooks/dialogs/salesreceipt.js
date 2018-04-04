@@ -1,7 +1,6 @@
-var dateFormat = require('dateformat');
-var fs = require('fs');
-var util = require('util');
-var qb = require('./../qbapi.js');
+const dateFormat = require('dateformat');
+const qb = require('./../modules/qbapi');
+const Token = require('./../modules/token');
 
 module.exports = function(bot) { 
     bot.dialog("searchReceipt",[
@@ -27,7 +26,7 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            if(!session.userData.token){
+            if(!Token.getToken(session.message.user.id)){
                 session.beginDialog("login");    
             }else{
                 next();
@@ -38,7 +37,7 @@ module.exports = function(bot) {
         function (session, results, next) {
             //not logged in
             console.log("results:"+JSON.stringify(results));
-            if(!results.auth && !session.userData.token){
+            if(!results.auth && !Token.getToken(session.message.user.id)){
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
@@ -87,44 +86,51 @@ module.exports = function(bot) {
             var initDateISO = dateFormat(session.dialogData.receiptInitDate,'isoDate');
             var finalDateISO = dateFormat(session.dialogData.receiptFinalDate,'isoDate');
 
+            const query = "SELECT * FROM SalesReceipt WHERE  TxnDate >= '"+initDateISO+"' and TxnDate <= '"+finalDateISO+"' and CustomerRef = '"+session.conversationData.customerId+"'";
+
             //Search for receipts on Quickbooks API
-            searchReceipt(session, initDateISO, finalDateISO, (err, data)=>{
-                    //callback function
-                    if(err){
-                        session.endDialog("Sorry. There was an error trying to search for receipts.");
-                        console.error(err);
-                    }else{
-                        if(data.SalesReceipt){
-                            var salesReceipts = {};
+            qb.queryQuickbooks(session, query, (error, data)=>{
+                if(error){
+                     if(error.code == 888 || error.code == 999){
+                         console.log(error.msg);
+                     }else if(error.code == 404){
+                         //token expired
+                         session.send("Sorry you need to login again into your account.");
+                         session.beginDialog('login');
+                     }
+                 } 
+                 else{
+                    if(data.SalesReceipt){
+                        var salesReceipts = {};
 
-                            for(var i=0; i<= data.SalesReceipt.length-1; i++){
-                                var _statusColor = 'green';
+                        for(var i=0; i<= data.SalesReceipt.length-1; i++){
+                            var _statusColor = 'green';
 
-                                var receipt = {
-                                    id: data.SalesReceipt[i].Id,
-                                    docNumber: data.SalesReceipt[i].DocNumber,
-                                    txnDate: data.SalesReceipt[i].TxnDate,
-                                    totalAmt: data.SalesReceipt[i].TotalAmt,
-                                    balance: data.SalesReceipt[i].Balance,
-                                    status: "Paid"
-                                };
+                            var receipt = {
+                                id: data.SalesReceipt[i].Id,
+                                docNumber: data.SalesReceipt[i].DocNumber,
+                                txnDate: data.SalesReceipt[i].TxnDate,
+                                totalAmt: data.SalesReceipt[i].TotalAmt,
+                                balance: data.SalesReceipt[i].Balance,
+                                status: "Paid"
+                            };
 
-                                var receiptsDisplay= "[b]#"+receipt.docNumber+"[/b]  -  Date: "+dateFormat(receipt.txnDate,'mediumDate')+" | Total: "+formatter.format(receipt.totalAmt)+" | [color="+_statusColor+"]"+receipt.status+"[/color]";
+                            var receiptsDisplay= "[b]#"+receipt.docNumber+"[/b]  -  Date: "+dateFormat(receipt.txnDate,'mediumDate')+" | Total: "+formatter.format(receipt.totalAmt)+" | [color="+_statusColor+"]"+receipt.status+"[/color]";
 
-                                salesReceipts[receiptsDisplay] = receipt;
-                            }
-                            session.dialogData.receipts = salesReceipts;
-                            console.log("receipts: "+JSON.stringify(session.dialogData.receipts));
-                            
-                            session.send("I found "+data.maxResults+" sales receipt(s).");
-                            builder.Prompts.choice(session, "Please select the Sales Receipt to see it:", salesReceipts, { listStyle: 2 });
-                        
-                        }else{
-                            session.send("Sorry. I didn't find any Sale Receipt with the parameters.");
-                            session.endDialog();
+                            salesReceipts[receiptsDisplay] = receipt;
                         }
+                        session.dialogData.receipts = salesReceipts;
+                        console.log("receipts: "+JSON.stringify(session.dialogData.receipts));
+                        
+                        session.send("I found "+data.maxResults+" sales receipt(s).");
+                        builder.Prompts.choice(session, "Please select the Sales Receipt to see it:", salesReceipts, { listStyle: 2 });
+                    
+                    }else{
+                        session.send("Sorry. I didn't find any Sale Receipt with the parameters.");
+                        session.endDialog();
                     }
-                });
+                }
+            });
         },
         function (session, results) {
             console.log("searchReceipt results:"+JSON.stringify(results));
@@ -132,7 +138,7 @@ module.exports = function(bot) {
             session.send(`Getting Sales Receipt #${receipt.docNumber}:`); 
             
             //Get specific receipt PDF on Quickbooks API
-            getReceiptPDF(session, receipt.id, (err, data)=>{
+            qb.getPDF(session, receipt.id, receipt.docNumber, "salesreceipt", (err, data)=>{
                 if(err){
                     console.error(err);
                     session.endDialog("Error to download the PDF");
@@ -185,7 +191,7 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            if(!session.userData.token){
+            if(!Token.getToken(session.message.user.id)){
                 session.beginDialog("login");    
             }else{
                 next();
@@ -196,7 +202,7 @@ module.exports = function(bot) {
         function (session, results, next) {
             //not logged in
             console.log("results:"+JSON.stringify(results));
-            if(!results.auth && !session.userData.token){
+            if(!results.auth && !Token.getToken(session.message.user.id)){
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
@@ -236,7 +242,7 @@ module.exports = function(bot) {
                                 console.log("invoiceFields:"+JSON.stringify(invoiceFields));
                                 
                                 //create the invoice in QuickBooks
-                                qb.createReceipt(session, invoiceFields, (error, receipt)=>{
+                                qb.updateQuickBooks(session, invoiceFields, "salesreceipt", (error, receipt)=>{
                                     if(error){
                                         if(error.code == 888 || error.code == 999){
                                             console.log(error.msg);
@@ -278,102 +284,3 @@ module.exports = function(bot) {
             matches: 'goodbye'
     });
 }
-
-
-//********* Quickbooks API Call ***************//
-
-//Call QuickBooks APIs for Search Receipt
-function searchReceipt(session, startDate, finalDate, callback){
-
-    if(!session.userData.token.access_token || !session.userData.realmId || !session.conversationData.customerId || !startDate || !finalDate){
-        console.error("Missing parameters for searchReceipt.");
-        //begin dialog for login again
-        session.message.token = null;
-        session.beginDialog("login");
-        callback("Missing parameters for searchReceipt.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+"/query?query="+
-        "SELECT * FROM SalesReceipt WHERE  TxnDate >= '"+startDate+"' and TxnDate <= '"+finalDate+"' and CustomerRef = '"+session.conversationData.customerId+"'";
-
-    request({
-            method: 'get',
-            url: _url,
-            headers: {'Authorization': 'Bearer ' + session.userData.token.access_token,
-                        'Accept': 'application/json'}
-        }, function (error, response, body){
-            if (error) {
-                console.error('searchReceipt: API call failed:', error);
-                callback(error, null);
-            }else{
-                if(response.statusCode != 200){
-                    //reseting the memory token for the user
-                    session.userData.token = null;
-
-                    //begin dialog for login again
-                    session.beginDialog("login");
-
-                    callback("searchReceipt: API call failed: UNAUTHORIZED. TOKEN EXPIRED!", null);
-                    return;
-                }
-
-                var res = JSON.parse(body);
-                // console.log("Got the receipts: "+JSON.stringify(res.QueryResponse));
-                callback(null, res.QueryResponse);
-            }
-        });
-
-}
-
-//Call QuickBooks APIs for Search receipt
-function getReceiptPDF(session, receiptID, callback){
-
-    if(!session.userData.token.access_token || !session.userData.realmId || !receiptID){
-        console.error("Missing parameters for getReceiptPDF.");
-        callback("Missing parameters for getReceiptPDF.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+"/salesreceipt/"+receiptID+"/pdf";
-    var today = new Date();
-    var filename = receiptID + "_salesreceipt_" + today.getDate() + ".pdf";
-    var file = fs.createWriteStream(__dirname+'/images/'+filename);
-
-    request({
-            method: 'get',
-            url: _url,
-            headers: {'Authorization': 'Bearer ' + session.userData.token.access_token,
-                        'Content-Type': 'application/pdf'}
-        }).on('error', (err)=>{
-            console.error('getReceiptPDF: API call failed:', error);
-            callback(error, null);
-        }).pipe(file).on('close',()=>{
-            sendInline(session, __dirname+'/images/'+filename, 'application/pdf', filename);
-        });
-}
-
-// Sends attachment inline in base64
-function sendInline(session, filePath, contentType, attachmentFileName) {
-    fs.readFile(filePath, function (err, data) {
-        if (err) {
-            return session.send('Oops. Error reading file.');
-        }
-        var base64 = Buffer.from(data).toString('base64');
-        var msg = new builder.Message(session)
-            .addAttachment({
-                contentUrl: util.format('data:%s;base64,%s', contentType, base64),
-                contentType: contentType,
-                name: attachmentFileName
-            });
-        session.endDialog(msg);
-    });
-}
-
-var Intl = require('intl');
-// Create our number formatter.
-var formatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2
-});
-
-

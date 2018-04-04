@@ -3,9 +3,7 @@
 var simpleOauthModule = require('simple-oauth2');
 require('dotenv').load();
 
-function OAuth2(bot) {
-
-  this.bot = bot;
+function OAuth2() {
 
   const client_id = process.env.OAUTH2_CLIENT_ID;
   const client_secret = process.env.OAUTH2_CLIENT_SECRET;
@@ -52,46 +50,41 @@ function OAuth2(bot) {
 }	
 
 // get /oauth
-OAuth2.prototype.auth = function(req, res) {
-  res.redirect(this.authorizationUri);
+OAuth2.prototype.auth = function(req, res, next) {
+  res.redirect(this.authorizationUri, next);
 };
 
 // get /callback
-OAuth2.prototype.callback = function(req, res, moxtraobj) {
+OAuth2.prototype.callback = function(req, res, data, callback) {
   var state = req.query.state;
+
   if(state != this.oauth2_state){
-    this.bot.emit("access_token", {}, null, moxtraobj, req);
     console.error("The state received in the callback doesn't match the one sent.");
     res.send('<html><head></head><body onload="javascript:window.close();"></body></html>');
     return;
   }
-
-  //company ID
-  var realmID = req.query.realmId;
   
-  console.log("State:"+state+" - RealmID:"+realmID);
   const code = req.query.code;
   const options = {
     code: code,
     redirect_uri: this.oauth2_redirect_uri
   };
 
-  this.oauth2.authorizationCode.getToken(options, (error, result) => {
+  this.oauth2.authorizationCode.getToken(options, (error, result) => {  
     if (error) {
-      console.error('Access Token Error', error.message);
-      this.bot.emit("access_token", {}, null, moxtraobj, req);
-      res.send('<html><head></head><body onload="javascript:window.close();"></body></html>');
-      return res.json('Authentication failed');
+      res.status(403);  
+      res.end('<html><head></head><body onload="javascript:window.close();"></body></html>');
+      callback('Access Token Error: '+error.message, null);
     }
 
-    const token = this.oauth2.accessToken.create(result);    
-    // console.log('The resulting token: ', result);
+    let token = this.oauth2.accessToken.create(result);    
+    token.realmId = req.query.realmId;
 
-    res.send('<html><head></head><body onload="javascript:window.close();"></body></html>');
     res.status(200);
-
-    console.log("/n/n####07: Emit access_token");
-    this.bot.emit("access_token", token, realmID, moxtraobj, req);
+    res.end('<html><head></head><body onload="javascript:window.close();"></body></html>');
+    
+    // console.log("\n\nGOT TOKEN:"+JSON.stringify(token));
+    callback(null, token);
   });
 
 };

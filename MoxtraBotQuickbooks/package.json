@@ -21,7 +21,10 @@
     "dotenv-extended": "^1.0.4",
     "express": "^4.16.2",
     "intl": "^1.2.5",
+    "jsonwebtoken": "^8.2.0",
     "pdfmake": "^0.1.35",
-    "restify": "^4.3.0"
+    "restify": "^4.3.0",
+    "restify-cookies": "^0.2.2",
+    "simple-oauth2": "^1.5.2"
   }
 }

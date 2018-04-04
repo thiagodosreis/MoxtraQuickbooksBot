@@ -1,8 +1,9 @@
+const Token = require('./../modules/token');
+const qb = require('./../modules/qbapi');
+
 module.exports = function(bot) {
     bot.dialog("searchCustomer",[
         function (session, args, next) {
-            console.log('searchCustomer args:'+JSON.stringify(args));
-
             //getting user name from other Dialog
             if(args.customerName){
                 session.dialogData.customerName = args.customerName;
@@ -17,7 +18,7 @@ module.exports = function(bot) {
             }
             
             //check if there is a token
-            if(!session.userData.token){
+            if(!Token.getToken(session.message.user.id)){
                 session.beginDialog("login");    
             }else{
                 next();
@@ -34,16 +35,22 @@ module.exports = function(bot) {
             if(results.response){
                 session.dialogData.customerName = results.response;
             }
-            
             session.send("Searching for customer "+session.dialogData.customerName+" ...");
 
-            searchCustomer(session, session.dialogData.customerName, (err, data)=>{
-                //callback function
-                if(err){
-                    session.endDialog("Sorry. There was an error trying to search for customer.");
-                    console.error(err);
-                }else{
-                    
+            const query = "Select * from Customer where FullyQualifiedName like%20%27%25"+session.dialogData.customerName+"%25%27";
+
+            //Search for invoices on Quickbooks API
+            qb.queryQuickbooks(session, query, (error, data)=>{
+                if(error){
+                    if(error.code == 888 || error.code == 999){
+                        console.log(error.msg);
+                    }else if(error.code == 404){
+                        //token expired
+                        session.send("Sorry, your QuickBooks session has expired. You need to login again into your account.");
+                        session.beginDialog('login');
+                    }
+                } 
+                else{
                     if(data.Customer){
                         var customers = {};
                         
@@ -64,7 +71,7 @@ module.exports = function(bot) {
                         }
                     }else{
                         session.send("Sorry. I didn't find any customer with that name.");
-                        session.endDialogWithResult();
+                        session.endDialog();
                     }
                 }
             });
@@ -90,54 +97,4 @@ module.exports = function(bot) {
             confirmPrompt: "This will cancel your customer search. Are you sure?"
         }
     );
-}
-
-
-
-//Call QuickBooks APIs for Search Customer
-function searchCustomer(session, customer_name, callback){
-    console.log("session.userData:"+JSON.stringify(session.userData));
-    if(!session.userData.token.access_token || !session.userData.realmId || !customer_name){
-        console.error("Missing parameters for searchCustomer.");
-        
-        //begin dialog for login again
-        session.message.token = null;
-        session.beginDialog("login");
-
-        callback("Missing parameters for searchCustomer.",null);
-    }
-
-    var _url = baseurl+"/v3/company/"+session.userData.realmId+
-                "/query?query=Select%20%2A%20from%20Customer%20where%20FullyQualifiedName%20like%20%27%25"+
-                customer_name+"%25%27";
-
-    request({
-            method: 'get',
-            url: _url,
-            headers: {'Authorization': 'Bearer ' + session.userData.token.access_token,
-                        'Accept': 'application/json'}
-        }, function (error, response, body){
-            if (error) {
-                console.error('searchCustomer: API call failed:', error);
-                callback(error, null);
-            }else{
-                console.log("searchCustomer: API call: response.statusCode: "+response.statusCode);
-                if(response.statusCode != 200){
-                    
-                    //reseting the memory token for the user
-                    session.userData.token = null;
-
-                    //begin dialog for login again
-                    session.beginDialog("login");
-                    
-                    callback("searchCustomer: API call failed: UNAUTHORIZED. TOKEN EXPIRED!", null);
-                    return;
-                }
-
-                var res = JSON.parse(body);
-                console.log("Got the Customer: "+JSON.stringify(res.QueryResponse));
-                callback(null, res.QueryResponse);
-            }
-        });
-
 }

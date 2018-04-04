@@ -1,7 +1,6 @@
-var dateFormat = require('dateformat');
-var fs = require('fs');
-var util = require('util');
-var qb = require('./../qbapi.js');
+const dateFormat = require('dateformat');
+const qb = require('./../modules/qbapi');
+const Token = require('./../modules/token');
 
 module.exports = function(bot) {
     bot.dialog("updateInvoice",[
@@ -23,7 +22,7 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            if(!session.userData.token){
+            if(!Token.getToken(session.message.user.id)){
                 session.beginDialog("login");    
             }else{
                 next();
@@ -34,7 +33,7 @@ module.exports = function(bot) {
         function (session, results, next) {
             //not logged in
             console.log("results:"+JSON.stringify(results));
-            if(!results.auth && !session.userData.token){
+            if(!results.auth && !Token.getToken(session.message.user.id)){
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
@@ -93,7 +92,7 @@ module.exports = function(bot) {
                         };
                         
                         //call the api to update the invoice fields
-                        qb.updateInvoice(session,fields, (error, success)=>{
+                        qb.updateQuickBooks(session, fields, "invoice", (error, success)=>{
                             if(error){
                                 if(error.code == 888 || error.code == 999){
                                     console.log(error.msg);

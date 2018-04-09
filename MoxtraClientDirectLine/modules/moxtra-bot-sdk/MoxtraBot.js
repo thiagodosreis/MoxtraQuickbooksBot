@@ -97,7 +97,8 @@ MoxtraBot.prototype.handlePostRequest = function (req, res, botApp) {
       break;
 
     case "bot_postback":
-      type = data.event.postback.text ? `postback:${data.event.postback.text}` : 'postback';
+      type='bot_postback';
+      // type = data.event.postback.text ? `postback:${data.event.postback.text}` : 'postback';
       break;
   }
 

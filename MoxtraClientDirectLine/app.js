@@ -40,6 +40,8 @@ database.connect(() => {
 
     // ******** Webhook interface ***********
     app.post('/webhooks', (req, res, next) => {
+        console.log("\n\nPOST Received:"+JSON.stringify(req.body));
+
         database.getBot(req.body.client_id, req.body.org_id, (err, botApp)=>{
             if(!err){
                 bot.verifyRequestSignature(req, res, botApp.secret);
@@ -52,11 +54,17 @@ database.connect(() => {
     // var oauth2 = new OAuth2(bot);
     app.get("/webhooks", function (req, res, next) {
         bot.handleGetRequest(req, res, database, (err, data)=>{
-            if(!err){
-                res.redirect('https://5840bc8c.ngrok.io/oauth2?token='+
-                                req.query['account_link_token']+
-                                "&conversationid="+_conversations[data.binder_id].conversationId);
+            try{
+                if(!err && _conversations[data.binder_id]){
+                    res.redirect(process.env.BOT_SERVER + '/oauth2?token='+
+                                    req.query['account_link_token']+
+                                    "&conversationid="+_conversations[data.binder_id].conversationId);
+                }
             }
+            catch(err){
+                console.log(err);
+            }
+            
         });
     });
     
@@ -109,36 +117,13 @@ database.connect(() => {
     dl.connect.then(function (client) {
         console.log("Direct Line for Moxtra is running!");
 
-        
-        bot.on('access_token', (res, data) => {    
-            //store token and data to user in Memory variable
-            console.log("data:"+JSON.stringify(data));
-
-            database.updateQBToken(data.user_id, data.token, (err, result)=>{
-                if(err){
-                    res.status(500);
-                    res.send('Error storing token.');
-                    console.log("Error writing token to DB: "+err);
-                    return;
-                }else{
-                    //Send the message (activity) to MS
-                    var conversationObj = _conversations[data.binder_id];
-                    if (conversationObj) {
-                        dl.sendMessagesMS(client, conversationObj.conversationId, "access_token_received", data.user_id, data.user_name);
-                    }else{
-                        console.log('No conversation found to binder '+data.binder_id);
-                    }
-                }
-            });            
-        });
-
         bot.on('bot_installed', (chat) => {
             console.log("bot_installed");
             const username = chat.username;
     
             getMoxtraToken(chat.botApp, (token)=>{
                 chat.setAccessToken(token.access_token);    
-                chat.sendText(`@${username} Welcome to MoxtraBot!!`);
+                chat.sendText(`@${username} Welcome to MoxtraBot for Quickbooks!!`);
             });
         });
     
@@ -148,37 +133,39 @@ database.connect(() => {
         });
     
         bot.on('bot_postback', (chat) => {
-            const binder_id = chat.binder_id;
-            console.log(`Bot bot_postback on ${binder_id}`);
+            sendMessagesMS(chat);
         });
     
-        bot.on('postback', (chat) => {
-            console.log("postback event capturated!");
-        });
         //***** receive message from Moxtra and send to MS ***** 
         bot.on('message', (chat) => {
-            var conversationObj = _conversations[chat.binder_id];
-            console.log("\n----> Received from MOXTRA Bot Server:" + JSON.stringify(chat.data));
-
-            if (!conversationObj) {
-                dl.startConversationMS(client, chat.binder_id, function (err, newConversation) {
-                    if(!err){
-                        //TODO: store the conversation_id and binder_id
-                        _conversations[chat.binder_id] = newConversation;
-
-                        //Start receiving messages from WS stream - using Node client
-                        startReceivingWebSocketClient(newConversation.streamUrl, newConversation.conversationId, chat);
-                        
-                        //send the message to MS
-                        dl.sendMessagesMS(client, newConversation.conversationId, chat.comment.text, chat.user_id, chat.username);
-                    } 
-                });
-            } else {
-                //send the message to MS
-                dl.sendMessagesMS(client, conversationObj.conversationId, chat.comment.text, chat.user_id, chat.username);
-            }
+            sendMessagesMS(chat);
         });
+
+        function sendMessagesMS(chat){
+            var conversationObj = _conversations[chat.binder_id];
+                console.log("\n----> Received from MOXTRA Bot Server:" + JSON.stringify(chat.data));
+    
+                if (!conversationObj) {
+                    dl.startConversationMS(client, chat.binder_id, function (err, newConversation) {
+                        if(!err){
+                            //TODO: store the conversation_id and binder_id
+                            _conversations[chat.binder_id] = newConversation;
+    
+                            //Start receiving messages from WS stream - using Node client
+                            startReceivingWebSocketClient(newConversation.streamUrl, newConversation.conversationId, chat);
+                            
+                            //send the message to MS
+                            dl.sendMessagesMS(client, newConversation.conversationId, chat);
+                        } 
+                    });
+                } else {
+                    //send the message to MS
+                    dl.sendMessagesMS(client, conversationObj.conversationId, chat);
+                }
+        }
     });
+
+
 
     // Listen from MS Bot Server 
     function startReceivingWebSocketClient(streamUrl, conversationId, chat) {
@@ -195,12 +182,11 @@ database.connect(() => {
 
             connection.on('error', function (error) {
                 console.error("Connection Error: " + error.toString());
-                reconnectWS(chat.binder_id);
             });
 
             connection.on('close', function () {
                 console.error('WebSocket Client Disconnected');
-                reconnectWS(chat.binder_id);
+                reconnectWS(chat);
             });
             //***** Receive message from MS and send to Moxtra ***** 
             connection.on('message', function (message) {
@@ -254,7 +240,11 @@ database.connect(() => {
                         }
 
                         formatMoxtraMsg(activities[i], (text, buttons, options)=>{
-                            chat.sendText(text, buttons, options);
+                            chat.sendText(text, null, null);
+                            if(buttons || options){
+                                chat.sendText(null, buttons, options);
+                            }
+                                
                         });
                     }
                 });                        
@@ -266,6 +256,9 @@ database.connect(() => {
     }
 
     function formatMoxtraMsg(activity, callback){
+
+        console.log("\n\nactivity:"+JSON.stringify(activity));
+
         //check for buttons
         var buttons;        
         if (activity.attachments && activity.attachments[0].contentType == "application/moxtra.button") {
@@ -286,7 +279,7 @@ database.connect(() => {
                 // pipe done here, do something with file
                 options.file_path = `${__dirname}/images/${filename}`;
                 //send the message to Moxtra Binder
-                callback("", buttons, options);
+                callback(activity.text, buttons, options);
             }));
         } else {
             //send the message to Moxtra Binder
@@ -303,9 +296,13 @@ database.connect(() => {
     }
 
     //reconnect Web Socket and try to get conversation and new stream url
-    function reconnectWS(binder_id){
-        var conversationObj = _conversations[binder_id];
+    function reconnectWS(chat){
+        
+
+        var conversationObj = _conversations[chat.binder_id];
         if (conversationObj) {
+
+            console.log("\nReconnecting a Web Socket for ConversationId: "+conversationObj.conversationId);
             dl.reconnectConversation(conversationObj.conversationId, conversationObj.watermark, (err, newStreamUrl) => {
                 if (err) {
                     console.log(err);

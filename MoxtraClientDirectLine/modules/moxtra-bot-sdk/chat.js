@@ -145,7 +145,7 @@ Chat.prototype.send = function (message, options) {
 
 // send Request
 Chat.prototype.sendRequest = function (body, path, method) {
-
+	
 	if (!this.access_token) {
 		console.log("Unable to send request without access_token!");
 		return;
@@ -207,7 +207,7 @@ Chat.prototype.uploadRequest = function (body, file_path, audio_path) {
 	}
 
 	const url = this.botApp.endpoint + '/' + this.binder_id + '/messages';
-
+	
 	return fetch(url, {
 		method: 'POST',
 		headers: {

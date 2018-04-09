@@ -8,53 +8,61 @@ module.exports = {
     queryQuickbooks: (session, query, callback)=>{
         var error = {};
 
+        console.log("\nQuery QuickBooks:\n"+query);
+
         //check for User's Token
-        if(!Token.getToken(session.message.user.id)){
-            callback('no_token', null);
-            return;
-        }
+        Token.getToken(session.message.user.id,(err, dbtoken)=>{
+            if(!dbtoken){
+                callback('no_token', null);
+                return;
+            }
 
-        const token = Token.getToken(session.message.user.id).token;
-        const realmId = Token.getToken(session.message.user.id).realmId;
+            if(!session || !query){
+                error.code = 999;
+                error.msg = "Missing parameters for queryQuickbooks."
+    
+                console.error(error.msg);
+                callback(error,null);
+                return;
+            }
 
-        if(!token || !realmId || !query){
-            error.code = 999;
-            error.msg = "Missing parameters for queryQuickbooks."
-
-            console.error(error.msg);
-            callback(error,null);
-        }
-
-        const _url = baseurl+"/v3/company/"+realmId+"/query?query="+query;
+            const _url = baseurl+"/v3/company/"+dbtoken.realmId+"/query?query="+query;
         
-        request({
-                method: 'get',
-                url: _url,
-                headers: {'Authorization': 'Bearer ' + token.access_token,
-                          'Accept': 'application/json'}
-            }, function (err, response, body){
-                if (err) {
-                    error.code = 888;
-                    error.msg = 'queryQuickbooks: API call failed:', err;
-                    console.error(error.msg);
-                    callback(error, null);
-                }else{
-                    if(response.statusCode != 200){
-                        //reseting the memory token for the user
-                        Token.storeToken(session.message.user.id, null);
-
-                        error.code = response.statusCode;
-                        error.msg = "queryQuickbooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
-
+            request({
+                    method: 'get',
+                    url: _url,
+                    headers: {'Authorization': 'Bearer ' + dbtoken.token.access_token,
+                            'Accept': 'application/json'}
+                }, function (err, response, body){
+                    if (err) {
+                        error.code = 888;
+                        error.msg = 'queryQuickbooks: API call failed:', err;
+                        console.error(error.msg);
                         callback(error, null);
-                        return;
-                    }
+                    }else{
+                        if(response.statusCode != 200){
+                            //reseting the memory token for the user
+                            Token.storeToken(session.message.user.id, null,(err, result)=>{
+                                if(err){
+                                    callback(err, null);
+                                    return;
+                                }
 
-                    var res = JSON.parse(body);
-                    // console.log("queryQuickbooks body:"+JSON.stringify(body));
-                    callback(null, res.QueryResponse);
-                }
-            });
+                                error.code = response.statusCode;
+                                error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
+
+                                callback(error, null);
+                            });
+                        }
+
+                        var res = JSON.parse(body);
+                        // console.log("queryQuickbooks body:"+JSON.stringify(body));
+                        callback(null, res.QueryResponse);
+                    }
+                });
+
+        });
+        
     },
 
     //Call QuickBooks APIs: Generic Invoice Update Function
@@ -62,141 +70,158 @@ module.exports = {
         var error = {};
 
         //check for User's Token
-        if(!Token.getToken(session.message.user.id)){
-            callback('no_token', null);
-            return;
-        }
+        Token.getToken(session.message.user.id,(err, dbtoken)=>{
+            if(!dbtoken){
+                callback('no_token', null);
+                return;
+            }
 
-        const token = Token.getToken(session.message.user.id).token;
-        const realmId = Token.getToken(session.message.user.id).realmId;
+            if(!session || !updateFields || !type){
+                error.code = 999;
+                error.msg = "Missing parameters for updateQuickBooks."
+    
+                console.error(error.msg);
+                callback(error,null);
+                return;
+            }
 
-        if(!token || !realmId || !session || !updateFields || !type){
-            error.code = 999;
-            error.msg = "Missing parameters for updateQuickBooks."
-
-            console.error(error.msg);
-            callback(error,null);
-        }
-
-        var _url = baseurl+"/v3/company/"+realmId+"/"+type;
+            var _url = baseurl+"/v3/company/"+dbtoken.realmId+"/"+type;
         
-        request({
+            request({
                 method: 'post',
                 url: _url,
-                headers: {'Authorization': 'Bearer ' + token.access_token,
+                headers: {'Authorization': 'Bearer ' + dbtoken.token.access_token,
                             'Accept': 'application/json'},
                 json: updateFields
-            }, function (err, response, body){
-                if (err) {
-                    error.code = 888;
-                    error.msg = 'updateQuickBooks: API call failed:'+ err;
-                    console.error(error.msg);
-                    callback(error, null);
-                }else{
-                    if(response.statusCode != 200){
-                        //reseting the memory token for the user
-                        Token.storeToken(session.message.user.id, null);
-
-                        error.code = response.statusCode;
-                        error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
-
+                }, 
+                function (err, response, body){
+                    if (err) {
+                        error.code = 888;
+                        error.msg = 'updateQuickBooks: API call failed:'+ err;
+                        console.error(error.msg);
                         callback(error, null);
-                    }else{//sucess
-                        callback(null, response.body);
-                    }
-                }
-            });
-    },
+                    }else{
+                        if(response.statusCode != 200){
+                            //reseting the memory token for the user
+                            Token.storeToken(session.message.user.id, null,(err, result)=>{
+                                if(err){
+                                    callback(err, null);
+                                    return;
+                                }
 
+                                error.code = response.statusCode;
+                                error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
+
+                                callback(error, null);
+                            });
+                        }else{//sucess
+                            callback(null, response.body);
+                        }
+                    }
+            });
+
+        });
+    },
 
     getReports: function (session, reportUrl, callback){
         //check for User's Token
-        if(!Token.getToken(session.message.user.id)){
-            callback('no_token', null);
-            return;
-        }
+        
+        Token.getToken(session.message.user.id,(err, dbtoken)=>{
+            if(!dbtoken){
+                callback('no_token', null);
+                return;
+            }
 
-        const token = Token.getToken(session.message.user.id).token;
-        const realmId = Token.getToken(session.message.user.id).realmId;
+            if(!session || !reportUrl){
+                error.code = 999;
+                error.msg = "Missing parameters for getReports."
 
-        if(!token || !realmId || !session){
-            error.code = 999;
-            error.msg = "Missing parameters for updateQuickBooks."
+                console.error(error.msg);
+                callback(error,null);
+                return;
+            }
 
-            console.error(error.msg);
-            callback(error,null);
-        }
+            var _url = baseurl+"/v3/company/"+dbtoken.realmId+"/reports/"+reportUrl;
 
-        var _url = baseurl+"/v3/company/"+realmId+"/reports/"+reportUrl;
-
-        request({
+            request({
                 method: 'get',
                 url: _url,
-                headers: {'Authorization': 'Bearer ' + token.access_token,
+                headers: {'Authorization': 'Bearer ' + dbtoken.token.access_token,
                             'Accept': 'application/json'}
-            }, function (error, response, body){
-                if (error) {
-                    console.error('readQuickbooks: API call failed:', error);
-                    callback(error, null);
-                }else{
-                    if(response.statusCode != 200){
-                        //reseting the memory token for the user
-                        session.userData.token = null;
+                }, 
+                function (error, response, body){
+                    if (error) {
+                        console.error('readQuickbooks: API call failed:', error);
+                        callback(error, null);
+                    }else{
+                        if(response.statusCode != 200){
+                            
 
-                        //begin dialog for login again
-                        session.beginDialog("login");
+                            //reseting the memory token for the user
+                            Token.storeToken(session.message.user.id, null,(err, result)=>{
+                                if(err){
+                                    callback(err, null);
+                                    return;
+                                }
 
-                        callback("readQuickbooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!", null);
-                        return;
+                                error.code = response.statusCode;
+                                error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
+
+                                callback(error, null);
+                            });
+                        }
+
+                        var res = JSON.parse(body);
+                        //callback(null, res.QueryResponse);
+                        callback(null, res);
                     }
-
-                    var res = JSON.parse(body);
-                    //callback(null, res.QueryResponse);
-                    callback(null, res);
                 }
-            });
+            );
+            
+
+        });
     },
 
     //Call QuickBooks APIs for Search Estimate
     getPDF: (session, id, docNum, type, callback)=>{
 
         //check for User's Token
-        if(!Token.getToken(session.message.user.id)){
-            callback('no_token', null);
-            return;
-        }
+        Token.getToken(session.message.user.id,(err, dbtoken)=>{
+            if(!dbtoken){
+                callback('no_token', null);
+                return;
+            }
 
-        const token = Token.getToken(session.message.user.id).token;
-        const realmId = Token.getToken(session.message.user.id).realmId;
+            if(!id || !docNum || !type){
+                error.code = 999;
+                error.msg = "Missing parameters for getPDF."
+    
+                console.error(error.msg);
+                callback(error,null);
+                return;
+            }
 
-        if(!token || !realmId || !id || !type){
-            error.code = 999;
-            error.msg = "Missing parameters for queryQuickbooks."
+            var _url = baseurl+"/v3/company/"+dbtoken.realmId+"/"+type+"/"+id+"/pdf";
+            var today = new Date();
+            var filename = docNum + "_"+type+"_" + today.getDate() + ".pdf";
+            var file = fs.createWriteStream(__dirname+'/../pdfs/'+filename);
 
-            console.error(error.msg);
-            callback(error,null);
-        }
-
-        var _url = baseurl+"/v3/company/"+realmId+"/"+type+"/"+id+"/pdf";
-        var today = new Date();
-        var filename = docNum + "_"+type+"_" + today.getDate() + ".pdf";
-        var file = fs.createWriteStream(__dirname+'/../pdfs/'+filename);
-
-        request({
-                method: 'get',
-                url: _url,
-                headers: {'Authorization': 'Bearer ' + token.access_token,
-                            'Content-Type': 'application/pdf'}
-            }).on('error', (err)=>{
-                console.error('getPDF: API call failed:', error);
-                callback(error, null);
-            }).pipe(file).on('close',()=>{
-                sendInline(session, __dirname+'/../pdfs/'+filename, 'application/pdf', filename);
-            });
+            request({
+                    method: 'get',
+                    url: _url,
+                    headers: {'Authorization': 'Bearer ' + dbtoken.token.access_token,
+                                'Content-Type': 'application/pdf'}
+                }).on('error', (err)=>{
+                    console.error('getPDF: API call failed:', error);
+                    callback(error, null);
+                }).pipe(file).on('close',()=>{
+                    sendInline(session, __dirname+'/../pdfs/'+filename, 'application/pdf', filename);
+                });
+        });  
     },
 
     //Pretending to be the DL Channel sending a message to Bot to get the return of OAuth 2.0 (Token)
-    postMessageDL: (message, user_id, user_name, conversationId, callback)=>{
+    postMessageDL: (message, user_id, user_name, conversationId)=>{
         const baseurl = "https://directline.botframework.com/v3/directline/conversations/";
         const _url = baseurl+conversationId+"/activities";
         const directLineSecret = process.env.DL_SECRET;
@@ -214,8 +239,6 @@ module.exports = {
                         id: conversationId
                     },
             textFormat: "plain",
-            token: "1273737373",
-            realmid: "ABC",
             text: message
         }
 
@@ -226,19 +249,15 @@ module.exports = {
                             'Accept': 'application/json'},
                 json: post_json
             }, function (err, response, body){
-                
-                console.log("createReceipt body:"+JSON.stringify(body));
-                console.log("createReceipt response.statusCode:"+response.statusCode);
-
                 if (err) {
                     console.error(error);
-                    callback(error, null);
                 }else{
                     if(response.statusCode != 200){
-                        console.log('Error: status not 200');
+                        console.log('Error: response code: '+response.statusCode);
                         return;
                     }else{//sucess
-                        callback(null, response.body);
+                        //callback(null, response.body);
+                        return response.body;
                     }
                 }
             });
@@ -254,13 +273,26 @@ function sendInline(session, filePath, contentType, attachmentFileName){
             return session.send('Oops. Error reading file:'+err);
         }
         var base64 = Buffer.from(data).toString('base64');
-        var msg = new builder.Message(session)
-            .addAttachment({
-                contentUrl: util.format('data:%s;base64,%s', contentType, base64),
-                contentType: contentType,
-                name: attachmentFileName
-            });
-        session.endDialog(msg);
+        // var msg = new builder.Message(session)
+        //     .addAttachment({
+        //         contentUrl: util.format('data:%s;base64,%s', contentType, base64),
+        //         contentType: contentType,
+        //         name: attachmentFileName
+        //     });
+        // msg.text("asdasdadadsd");
+
+        session.send({
+            // text: "You senta asdadasdsad:",
+            attachments: [
+                {
+                    contentUrl: util.format('data:%s;base64,%s', contentType, base64),
+                    contentType: contentType,
+                    name: attachmentFileName
+                }
+            ]
+        });
+
+        session.endDialog();
 
         //delete the file
         fs.unlinkSync(filePath);

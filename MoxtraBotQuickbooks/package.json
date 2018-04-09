@@ -22,6 +22,7 @@
     "express": "^4.16.2",
     "intl": "^1.2.5",
     "jsonwebtoken": "^8.2.0",
+    "mongodb": "^3.0.5",
     "pdfmake": "^0.1.35",
     "restify": "^4.3.0",
     "restify-cookies": "^0.2.2",

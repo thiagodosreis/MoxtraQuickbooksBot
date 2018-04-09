@@ -22,18 +22,20 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            if(!Token.getToken(session.message.user.id)){
-                session.beginDialog("login");    
-            }else{
-                next();
-            }
+            Token.getToken(session.message.user.id, (err, result)=>{
+                if(!result){
+                    session.beginDialog("login");    
+                }else{
+                    next({auth: true});
+                }
+            });
 
             console.log("session.dialogData:"+JSON.stringify(session.dialogData));
         },
         function (session, results, next) {
             //not logged in
             console.log("results:"+JSON.stringify(results));
-            if(!results.auth && !Token.getToken(session.message.user.id)){
+            if(!results.auth){
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }

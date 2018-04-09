@@ -64,7 +64,18 @@ module.exports = {
     },
 
     // Posting the message to MS Bot (activity)
-    sendMessagesMS:  (client, conversationId, msg, user_id, user_name) => {
+    sendMessagesMS:  (client, conversationId, chat) => {
+
+        let msg = "";
+        if("postback" in chat){
+            msg = chat.postback.payload;
+        }else if("comment" in chat){
+            msg = chat.comment.text;
+        }else{
+            console.log('No text or button postback received!');
+            return;
+        }
+
         // Send message
         client.Conversations.Conversations_PostActivity({
             conversationId: conversationId,
@@ -74,12 +85,12 @@ module.exports = {
                 type: 'message',
                 from: {
                     channel: "Moxtra_Direct_Line",
-                    id: user_id,
-                    name: user_name
+                    id: chat.user_id,
+                    name: chat.username
                 },
-                client_id: "123",
-                org_id: "1111",
-                binder_id: "XXXXX"
+                client_id: chat.client_id,
+                org_id: chat.org_id,
+                binder_id: chat.bindr_id
             }
         }).catch(function (err) {
             console.error('sendMessagesMS Error sending message:', err);

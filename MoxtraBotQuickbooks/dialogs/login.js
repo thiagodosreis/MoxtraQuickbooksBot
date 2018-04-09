@@ -7,7 +7,7 @@ module.exports = function(bot) {
             console.log("\n\n**** Got first waterfall!");
             console.log("session.message:"+JSON.stringify(session.message));
 
-            if(session.message.text != "access_token_received"){
+            if(session.message.text != "access_token_received" && session.message.text != "access_token_error"){
 
                 session.send(new builder.Message(session).addAttachment(
                     {
@@ -37,20 +37,20 @@ module.exports = function(bot) {
 
             console.log("\n\n**** Got the next waterfall!");
 
-            if(session.message.text == "access_token_received" && Token.getToken(session.message.user.id)){
-                
-                //store user information in the User Storage container
-                session.userData.userName = session.message.user.name;
-                session.userData.userId = session.message.user.id;
+            Token.getToken(session.message.user.id, (err, token)=>{
+                if(token && session.message.text == "access_token_received"){
+                    //store user information in the User Storage container
+                    session.userData.userName = session.message.user.name;
+                    session.userData.userId = session.message.user.id;
 
-                //send the messages back to chat
-                session.send("@"+session.userData.userName+" you're logged into your Quickbooks account.");
-                session.endDialogWithResult({auth: true});
-
-            }else{
-                session.send("Sorry, no authorization received from Quickbooks. Please, type 'login' to try again.");
-                session.endDialogWithResult({auth: false});
-            }
+                    //send the messages back to chat
+                    session.send("@"+session.userData.userName+" you're logged into your Quickbooks account.");
+                    session.endDialogWithResult({auth: true});
+                }else{
+                    session.send("Sorry, no authorization received from Quickbooks. Please, type 'login' to try again.");
+                    session.endDialogWithResult({auth: false});
+                }
+            });
         }
     ]
     )

@@ -108,8 +108,8 @@ MoxtraBot.prototype.handlePostRequest = function (req, res, botApp) {
 // verify Moxtra request signature
 MoxtraBot.prototype.verifyRequestSignature = function (req, res, secret) {
   const buf = JSON.stringify(req.body);
-  
   var signature = req.headers['x-moxtra-signature'];
+
   if (!signature) {
     console.log("No signature to validate!");
     this.emit('error', "Validation on the request signature failed!");
@@ -120,7 +120,7 @@ MoxtraBot.prototype.verifyRequestSignature = function (req, res, secret) {
     var expectedHash = crypto.createHmac('sha1', new Buffer(secret)).update(new Buffer(buf, 'utf8')).digest('hex');
 
     if (signatureHash != expectedHash) {
-      // throw new Error("Validation on the request signature failed!");
+      console.log("Validation on the request signature failed!");
       this.emit('error', "Validation on the request signature failed!");
     }else{
       console.log("Got the right signature!!");

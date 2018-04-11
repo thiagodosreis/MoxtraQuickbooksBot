@@ -107,9 +107,7 @@ server.get("/oauth2/callback", function (req, res) {
                 console.log('\nerr:'+err);
 
                 //Post a message to the DL pretending to be the Channel
-                qb.postMessageDL('access_token_error', user_id, cookies.user_name, cookies.conversationId, (err, result)=>{
-                    console.log('\nErr:'+err);
-                });
+                qb.postMessageDL('access_token_error', user_id, cookies.user_name, cookies.conversationId, (err, result)=>{});
             }
         });
     }

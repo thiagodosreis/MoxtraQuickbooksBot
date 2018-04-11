@@ -1,0 +1,23 @@
+{
+  "name": "moxtraalerts",
+  "version": "1.0.0",
+  "description": "Set alerts and manage jobs for Moxtra Bot",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "moxtra",
+    "moxtra-bot"
+  ],
+  "author": "Thiago dos Reis",
+  "license": "ISC",
+  "dependencies": {
+    "assert": "^1.4.1",
+    "cron": "^1.3.0",
+    "crypto": "^1.0.1",
+    "dotenv": "^5.0.1",
+    "mongodb": "^3.0.6",
+    "request": "^2.85.0"
+  }
+}

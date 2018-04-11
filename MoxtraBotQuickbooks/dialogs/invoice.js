@@ -272,5 +272,4 @@ module.exports = function(bot) {
             matches: 'goodbye'
         }
     );
-
 }

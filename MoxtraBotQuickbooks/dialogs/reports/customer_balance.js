@@ -31,8 +31,6 @@ module.exports = function(bot) {
         },
         function (session, results, next) {
             //not logged in
-            console.log("results:"+JSON.stringify(results));
-
             if(!results.auth){
                 session.send("Sorry, no authorization");
                 session.endConversation();
@@ -51,7 +49,6 @@ module.exports = function(bot) {
             if(!session.conversationData.customerId){
                 session.endDialog('Sorry no Customer selected.');
             }else{
-
                 const reportUrl = "CustomerBalanceDetail?customer="+session.conversationData.customerId;
                 generatesReport(session, reportUrl);
             }

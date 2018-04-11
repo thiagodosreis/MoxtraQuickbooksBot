@@ -2,6 +2,8 @@ var pdfmake = require('pdfmake');
 const fs = require('fs');
 const qb = require('./../modules/qbapi');
 
+//http://pdfmake.org/playground.html
+
 module.exports = {
 
     generateReport: (session, h2, h3, items, reportname)=>{

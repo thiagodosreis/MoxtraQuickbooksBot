@@ -8,12 +8,21 @@
 // │    └──────────────────── minute (0 - 59)
 // └───────────────────────── second (0 - 59, OPTIONAL)
 
-var cron = require('cron');
+const cron = require('cron');
+const request = require('request');
+const crypto = require('crypto');
+const MongoClient = require('mongodb').MongoClient;
+const assert = require('assert');
+require('dotenv-extended').load();
 
 var job = new cron.CronJob({
     cronTime: '00 * * * * 1-5',
     onTick: ()=> {
         var date = new Date();
+
+        //changing time to PST for Pivotal server Only
+        date.setHours(date.getHours()-7);
+
         logme('job', date);
         runJob(date.toTimeString().substring(0,5));
         
@@ -25,22 +34,59 @@ var job = new cron.CronJob({
     timeZone: 'America/Los_Angeles'
   });
 
+console.log('Starting the job.');
 job.start();
+
 
 const logme = (name, date)=> {
     console.log(`Running Job '${name}' on ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}! `);
 };
 
+const runJob = (time)=>{
+    const dburl = process.env.DATABASE;
+    
+    
+    try{
+        MongoClient.connect(dburl, (err, database) => {
+            assert.equal(null, err);
+            // console.log("Successfully connected to MongoDB.");
+            db = database.db();
+            
+            //get the jobs from DB
+            const collec = db.collection('alerts');
+            const query = {"alerts.scheduled.frequency": "daily", "alerts.scheduled.time": time};
+            const cursor = collec.find(query);
+    
+            //post the messages to Bot Channel
+            cursor.forEach((doc)=>{
+                console.log('Feched doc:'+JSON.stringify(doc));
+                doc.alerts.scheduled.forEach((e)=>{
+                    if(e.time == time){
+                        sendAlert(doc, e.resource);
+                    }
+                });
+            },(err)=>{
+                if(err){
+                    console.log('Error feching docs:'+err);
+                }
+            });
+    
+            //end DB connection
+            database.close();
+            // console.log("DB connection closed.");
+        });
+    }
+    catch(err){
+        console.log('Err executing the cron Job:'+err);
+    }
+}
 
-
-const request = require('request');
-const crypto = require('crypto');
-const MongoClient = require('mongodb').MongoClient;
-const assert = require('assert');
-require('dotenv').load();
-
-const sendAlert = (alarm)=>{
+const sendAlert = (alarm, resource)=>{
     const _url = process.env.BOT_CHANNEL_URL;
+    
+    // console.log("_url: "+_url);
+    // console.log("alarm:"+JSON.stringify(alarm));
+    // console.log("resource:"+resource);
 
     const post_json = {
         "message_type": "comment_posted",
@@ -53,7 +99,7 @@ const sendAlert = (alarm)=>{
                 "name": alarm.user.name
             },
             "comment": {
-                "text": alarm.type
+                "text": resource
             }
         }
     };
@@ -69,7 +115,7 @@ const sendAlert = (alarm)=>{
             json: post_json
         }, function (err, response, body){
             if (err) {
-                console.error(error);
+                console.error(err);
             }else{
                 if(response.statusCode != 200){
                     console.log('Error sendAlert: response code: '+response.statusCode);
@@ -82,36 +128,3 @@ const sendAlert = (alarm)=>{
             }
         });
 };
-
-const runJob = (time)=>{
-    const dburl = process.env.DATABASE;
-
-    MongoClient.connect(dburl, (err, database) => {
-        assert.equal(null, err);
-        console.log("Successfully connected to MongoDB.");
-        db = database.db();
-        
-        //get the jobs from DB
-        const collec = db.collection('alarms');
-        const query = {"alarm.frequency": "daily", "alarm.time": time};
-        // const query = {"alarm.frequency": "daily"};
-        const cursor = collec.find(query);
-
-        //post the messages to Bot Channel
-        cursor.forEach((doc)=>{
-            sendAlert(doc);
-            console.log('Feched doc:'+JSON.stringify(doc));
-        },(err)=>{
-            if(err){
-                console.log('Error feching docs:'+err);
-            }
-        });
-
-        //end DB connection
-        database.close();
-        console.log("DB connection closed.");
-    });
-};
-
-
-runJob('17','25');

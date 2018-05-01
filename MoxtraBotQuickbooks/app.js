@@ -14,7 +14,7 @@ global.request = require('request');
 global.baseurl = process.env.QUICKBOOKS_BASEURL;
 
 global._address = {};
-global._token = {};
+global._token = {}; //in memory token
 
 // Setup Restify Server
 var server = restify.createServer();
@@ -37,6 +37,16 @@ var connector = new builder.ChatConnector({
 
 
 server.post('/api/messages', connector.listen());
+
+const qbalerts = require('./modules/qbwebhooks');
+server.post('/api/alerts', (req, res)=>{
+    console.log("Data received:"+JSON.stringify(req.body));
+    console.log("Called the function");
+    qbalerts.getQBwebhooks(req, res, database);
+    console.log("Sending 200 status");
+    res.status(200);
+    res.send();
+});
 
 server.get('/api/test', (req, res) => {
     console.log("Ok I got a http GET request for: /api/test");
@@ -124,6 +134,8 @@ var bot = new builder.UniversalBot(connector, [
         //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt3\" client_id=\""+session.message.client_id+"\"]Invoice #1015[/mxButton][/td][/tr]"+
         //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt4\" client_id=\""+session.message.client_id+"\"]Invoice #1014[/mxButton][/td][/tr]"+    
         // "[/table]";
+
+        
         const msg = "Sorry, I didn't understand that. You can try things like:\n"+
         "- Get me estimates.\n"+
         "- Show me overdue invoices.\n"+
@@ -147,10 +159,15 @@ require('./dialogs/salesreceipt.js')(bot);
 require('./dialogs/estimates.js')(bot);
 require('./dialogs/customer.js')(bot);
 require('./dialogs/login.js')(bot);
+require('./dialogs/alerts')(bot);
 require('./dialogs/reports/customer_balance')(bot);
 require('./dialogs/reports/receivable')(bot);
 require('./dialogs/reports/payable')(bot);
+require('./dialogs/vendor')(bot);
+require('./dialogs/bill')(bot);
 
+//Start Scheduled Alerts
+require('./modules/job');
 
 
 //********* Helper method ***************//

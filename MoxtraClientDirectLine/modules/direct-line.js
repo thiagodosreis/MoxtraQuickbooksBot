@@ -90,7 +90,7 @@ module.exports = {
                 },
                 client_id: chat.client_id,
                 org_id: chat.org_id,
-                binder_id: chat.bindr_id
+                binder_id: chat.binder_id
             }
         }).catch(function (err) {
             console.error('sendMessagesMS Error sending message:', err);

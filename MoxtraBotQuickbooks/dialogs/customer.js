@@ -4,15 +4,26 @@ const qb = require('./../modules/qbapi');
 module.exports = function(bot) {
     bot.dialog("searchCustomer",[
         function (session, args, next) {
+            session.dialogData.displayMsg = true;
+
             //getting user name from other Dialog
             if(args.customerName){
                 session.dialogData.customerName = args.customerName;
+                session.dialogData.displayMsg = args.displayMsg;
             }else{
                 //getting user name from this Dialog Intent Call
                 if(args && args.intent && args.intent.entities && args.intent.entities.length > 0){
-                    var customerName = builder.EntityRecognizer.findEntity(args.intent.entities, 'CustomerName');
+                    var customerName = builder.EntityRecognizer.findEntity(args.intent.entities, 'CustomerVendorName');
                     if(customerName){
                         session.dialogData.customerName = customerName.entity;
+                    }
+                }
+
+                //estimate Status (Open, Paid, Overdue)
+                var allCustomers = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceStatus');
+                if(allCustomers){
+                    if(allCustomers.resolution.values[0] == "All"){
+                        session.dialogData.allCustomers = allCustomers.resolution.values[0];
                     }
                 }
             }
@@ -27,7 +38,7 @@ module.exports = function(bot) {
             });
         },
         function(session, results, next){
-            if (!session.dialogData.customerName){
+            if (!session.dialogData.customerName && !session.dialogData.allCustomers){
                 builder.Prompts.text(session, "Please, type the name of the customer:");
             }else{
                 next();
@@ -37,23 +48,31 @@ module.exports = function(bot) {
             if(results.response){
                 session.dialogData.customerName = results.response;
             }
-            session.send("Searching for customer "+session.dialogData.customerName+" ...");
+            // session.send("Searching for customer "+session.dialogData.customerName+" ...");
 
-            const query = "Select * from Customer where FullyQualifiedName like%20%27%25"+session.dialogData.customerName+"%25%27";
+            let query = "Select Id, FullyQualifiedName from Customer";
+
+            if(!session.dialogData.allCustomers && session.dialogData.customerName){
+                query += " where FullyQualifiedName like%20%27%25"+session.dialogData.customerName+"%25%27";
+            }
+
 
             //Search for invoices on Quickbooks API
             qb.queryQuickbooks(session, query, (error, data)=>{
                 if(error){
                     if(error.code == 888 || error.code == 999){
                         console.log(error.msg);
-                    }else if(error.code == 404){
+                    }else if(error.code == 401){
                         //token expired
                         session.send("Sorry, your QuickBooks session has expired. You need to login again into your account.");
                         session.beginDialog('login');
+                    }else{
+                        session.send("Sorry. I didn't find any customer with that name!");
+                        session.endDialog();
                     }
                 } 
                 else{
-                    if(data.Customer){
+                    if(data && data.Customer){
                         var customers = {};
                         
                         for(var i=0; i<= data.Customer.length-1; i++){
@@ -72,7 +91,7 @@ module.exports = function(bot) {
                             builder.Prompts.choice(session, "I found "+data.maxResults+" customer(s). Please select:", customers, { listStyle: 2 });
                         }
                     }else{
-                        session.send("Sorry. I didn't find any customer with that name.");
+                        session.send("Sorry. I didn't find any customer with that name!");
                         session.endDialog();
                     }
                 }
@@ -85,8 +104,12 @@ module.exports = function(bot) {
             session.conversationData.customerId = session.dialogData.customers[results.response.entity].id;
             session.conversationData.customerName = session.dialogData.customerName = session.dialogData.customers[results.response.entity].name;
 
-            session.endDialog(`Customer selected!\n Name: [b]${session.conversationData.customerName}[/b] - ID: ${session.conversationData.customerId}`); 
-            //session.endDialogWithResult(session.dialogData.customers[results.response.entity]);
+            if(session.dialogData.displayMsg){
+                session.endDialog(`Customer selected.\n Name: [b]${session.conversationData.customerName}[/b] - ID: ${session.conversationData.customerId}`); 
+            }
+            else{
+                session.endDialog();
+            }
         }
     ])
     .triggerAction({

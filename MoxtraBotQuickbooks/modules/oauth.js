@@ -1,6 +1,7 @@
 'use strict'
 
 var simpleOauthModule = require('simple-oauth2');
+var querystring = require('querystring');
 require('dotenv').load();
 
 function OAuth2() {
@@ -24,7 +25,7 @@ function OAuth2() {
   this.oauth2_redirect_uri = oauth2_redirect_uri;
   this.oauth2_state = oauth2_state;
   
-	this.oauth2 = simpleOauthModule.create({
+  this.oauth2 = simpleOauthModule.create({
 	  client: {
 	    id: client_id,
 	    secret: client_secret
@@ -39,7 +40,7 @@ function OAuth2() {
       useBasicAuthorizationHeader: true,
       useBodyAuth: false
     }
-	});
+  });
 		
 	// Authorization uri definition
 	this.authorizationUri = this.oauth2.authorizationCode.authorizeURL({
@@ -87,6 +88,54 @@ OAuth2.prototype.callback = function(req, res, data, callback) {
     callback(null, token);
   });
 
+};
+
+OAuth2.prototype.isValid = (tokenObject)=>{
+  // Provide a window of time before the actual expiration to refresh the token
+  const EXPIRATION_WINDOW_IN_SECONDS = 300;
+
+  const expirationTimeInSeconds = tokenObject.expires_at.getTime() / 1000;
+  const expirationWindowStart = expirationTimeInSeconds - EXPIRATION_WINDOW_IN_SECONDS;
+
+  // If the start of the window has passed, refresh the token
+  const nowInSeconds = (new Date()).getTime() / 1000;
+  const result = expirationWindowStart > nowInSeconds;
+
+  console.log("\n\nToken is valid? "+result)
+  return result;
+}
+
+OAuth2.prototype.refresh = (tokenObject, cb)=>{
+  
+  //Check if the token has expired
+  console.log("\n\nRefreshing QB Access Token!");
+
+  // Callbacks
+  const _url = process.env.OAUTH2_TOKEN_HOST + process.env.OAUTH2_TOKEN_PATH;
+  const basic = Buffer.from(process.env.OAUTH2_CLIENT_ID + ":" + process.env.OAUTH2_CLIENT_SECRET).toString('base64');
+
+  const json = {
+    "grant_type": "refresh_token",
+    "refresh_token": tokenObject.refresh_token
+  }
+
+  request({
+          method: 'post',
+          url: _url,
+          headers: {'Authorization': 'Basic ' + basic,
+                      'Content-Type': 'application/x-www-form-urlencoded'},
+          body: querystring.stringify(json)
+      }, function (err, response, body){
+          if (err) {
+              console.error('queryQuickbooks: API call failed:'+err);
+              cb(err, null);
+          }else{
+            const result = JSON.parse(response.body);
+            result.expires_at = new Date(Date.now() + (result.expires_in * 1000));
+
+            cb(null, result);
+          }
+        });
 };
 
 module.exports = OAuth2;

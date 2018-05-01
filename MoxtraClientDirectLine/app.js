@@ -41,13 +41,23 @@ database.connect(() => {
     // ******** Webhook interface ***********
     app.post('/webhooks', (req, res, next) => {
         console.log("\n\nPOST Received:"+JSON.stringify(req.body));
-
-        database.getBot(req.body.client_id, req.body.org_id, (err, botApp)=>{
-            if(!err){
-                bot.verifyRequestSignature(req, res, botApp.secret);
-                bot.handlePostRequest(req, res, botApp);
-            }else{ console.error(err); } 
-        });
+        var client_id = req.body.client_id;
+        var org_id = req.body.org_id;
+        
+        if(client_id && org_id){
+            database.getBot(req.body.client_id, req.body.org_id, (err, botApp)=>{
+                if(!err){
+                    bot.verifyRequestSignature(req, res, botApp.secret);
+                    bot.handlePostRequest(req, res, botApp);
+                }else{ 
+                    console.error(err); 
+                    res.status(200);
+                    res.send("Error");
+                } 
+            });
+        }else{
+            res.sendStatus(200);
+        }
     });
 
     // ******** OAuth2.0 interface ***********
@@ -240,10 +250,10 @@ database.connect(() => {
                         }
 
                         formatMoxtraMsg(activities[i], (text, buttons, options)=>{
-                            chat.sendText(text, null, null);
-                            if(buttons || options){
-                                chat.sendText(null, buttons, options);
-                            }
+                            // chat.sendText(text, null, null);
+                            // if(buttons || options){
+                                chat.sendText(text, buttons, options);
+                            // }
                                 
                         });
                     }

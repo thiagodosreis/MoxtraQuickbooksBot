@@ -11,7 +11,7 @@ module.exports = function(bot) {
             //getting arguments typed by the user
             if(args && args.intent && args.intent.entities && args.intent.entities.length > 0){
                 //customer
-                var customerName = builder.EntityRecognizer.findEntity(args.intent.entities, 'CustomerName');
+                var customerName = builder.EntityRecognizer.findEntity(args.intent.entities, 'CustomerVendorName');
                 if (customerName){
                     session.dialogData.customerName = customerName.entity;
                 }
@@ -29,12 +29,8 @@ module.exports = function(bot) {
                 //Invoice Status (Open, Paid, Overdue)
                 var invoiceStatus = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceStatus');
                 if(invoiceStatus){
-                    // console.log("InvoiceStatus: "+JSON.stringify(invoiceStatus));
                     session.dialogData.invoiceStatus = invoiceStatus.resolution.values[0];
                 }
-
-                //session.dialogData.invoiceDueDateOn = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.date');
-                //session.dialogData.invoiceStatus = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceStatus');
             }
 
             //check if there is a token
@@ -50,7 +46,6 @@ module.exports = function(bot) {
         },
         function (session, results, next) {
             //not logged in
-            console.log("results:"+JSON.stringify(results));
             if(!results.auth){
                 session.send("Sorry, no authorization");
                 session.endConversation();
@@ -63,7 +58,7 @@ module.exports = function(bot) {
                     //#02 Search for customer
                     console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
                     if (!session.conversationData.customerId || session.dialogData.customerName){
-                        var args= {customerName: session.dialogData.customerName};
+                        var args= {customerName: session.dialogData.customerName, displayMsg: false};
                         session.beginDialog('searchCustomer',args);
                     }else{
                         next();
@@ -125,16 +120,17 @@ module.exports = function(bot) {
                 }
                 if(session.dialogData.invoiceStatus){
                     msg += `[b]Status:[/b] ${session.dialogData.invoiceStatus}`;
-                        
-                    if(session.dialogData.invoiceStatus == "Paid"){//Paid
-                        query += " and  Balance = '0' ";
-                    }else if(session.dialogData.invoiceStatus == "Open"){//Open
-                        query += " and  Balance != '0' ";
-                    }else if(session.dialogData.invoiceStatus == "Overdue"){//Overdue
-                        query += " and  Balance != '0' and DueDate < '"+dateFormat(new Date(),'isoDate')+"' ";
+                    
+                    if(session.dialogData.invoiceStatus != "All"){
+                        if(session.dialogData.invoiceStatus == "Paid"){//Paid
+                            query += " and  Balance = '0' ";
+                        }else if(session.dialogData.invoiceStatus == "Open"){//Open
+                            query += " and  Balance != '0' ";
+                        }else if(session.dialogData.invoiceStatus == "Overdue"){//Overdue
+                            query += " and  Balance != '0' and DueDate < '"+dateFormat(new Date(),'isoDate')+"' ";
+                        }
                     }
                 }
-
 
 
                 //Search for invoices on Quickbooks API
@@ -184,8 +180,7 @@ module.exports = function(bot) {
                             session.dialogData.invoices = invoices;
                             console.log("invoices: "+JSON.stringify(session.dialogData.invoices));
                             
-                            session.send("I found "+data.maxResults+" invoice(s).");
-                            builder.Prompts.choice(session, "Please select the invoice to see it:", invoices, { listStyle: 2 });
+                            builder.Prompts.choice(session, "I found "+data.maxResults+" invoice(s).\nPlease select the invoice you want to see:", invoices, { listStyle: 2 });
                         
                         }else{
                             session.send("Sorry. I didn't find any invoice with the parameters.");
@@ -254,10 +249,9 @@ module.exports = function(bot) {
         }
     )
     .cancelAction(
-        "cancelSearchInvoice", "Type 'ok' to continue.", 
+        "cancelSearchInvoice", "Ok. Invoice search canceled!", 
         {
-            matches: /^cancel$/i,
-            confirmPrompt: "This will cancel your search. Are you sure?"
+            matches: /^cancel$/i
         }
     )
     .reloadAction(

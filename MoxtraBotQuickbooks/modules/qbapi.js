@@ -11,7 +11,10 @@ module.exports = {
         console.log("\nQuery QuickBooks:\n"+query);
 
         //check for User's Token
-        Token.getToken(session.message.user.id,(err, dbtoken)=>{
+        Token.getToken(session.message.user.id, (err, dbtoken)=>{
+            // console.log("dbtoken:"+JSON.stringify(dbtoken));
+
+
             if(!dbtoken){
                 callback('no_token', null);
                 return;
@@ -27,7 +30,8 @@ module.exports = {
             }
 
             const _url = baseurl+"/v3/company/"+dbtoken.realmId+"/query?query="+query;
-        
+            // console.log("url:"+_url);
+            // console.log("token:"+dbtoken.token.access_token);
             request({
                     method: 'get',
                     url: _url,
@@ -40,23 +44,18 @@ module.exports = {
                         console.error(error.msg);
                         callback(error, null);
                     }else{
+                        // console.log("\n\nresponse.statusCode: "+response.statusCode);
+                        // console.log("response:"+JSON.stringify(response));
+
                         if(response.statusCode != 200){
-                            //reseting the memory token for the user
-                            Token.storeToken(session.message.user.id, null,(err, result)=>{
-                                if(err){
-                                    callback(err, null);
-                                    return;
-                                }
+                            error.code = response.statusCode;
+                            error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
 
-                                error.code = response.statusCode;
-                                error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
-
-                                callback(error, null);
-                            });
+                            callback(error, null);
+                            return;
                         }
 
                         var res = JSON.parse(body);
-                        // console.log("queryQuickbooks body:"+JSON.stringify(body));
                         callback(null, res.QueryResponse);
                     }
                 });
@@ -86,7 +85,10 @@ module.exports = {
             }
 
             var _url = baseurl+"/v3/company/"+dbtoken.realmId+"/"+type;
-        
+            
+            console.log("_url:"+_url);
+            console.log("updateFields:"+JSON.stringify(updateFields));
+
             request({
                 method: 'post',
                 url: _url,

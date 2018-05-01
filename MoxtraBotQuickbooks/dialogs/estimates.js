@@ -10,12 +10,12 @@ module.exports = function(bot) {
     ////////////////////////////////////////////////////////////////////////////////////////////////
     bot.dialog("searchEstimate",[
         function (session, args, next) {
-            console.log("searchEstimate args:"+JSON.stringify(args));
+            console.log("searchEstimate args:"+JSON.stringify(args.intent.entities));
 
             //getting arguments typed by the user
             if(args && args.intent && args.intent.entities && args.intent.entities.length > 0){
                 //customer
-                var customerName = builder.EntityRecognizer.findEntity(args.intent.entities, 'CustomerName');
+                var customerName = builder.EntityRecognizer.findEntity(args.intent.entities, 'CustomerVendorName');
                 if (customerName){
                     session.dialogData.customerName = customerName.entity;
                 }
@@ -25,9 +25,21 @@ module.exports = function(bot) {
                     session.dialogData.estimateInitDate = estimateDateRange.resolution.values[0].start;
                     session.dialogData.estimateFinalDate = estimateDateRange.resolution.values[0].end;
                 }
-
-                session.dialogData.estimateDueDateOn = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.date');
-                // session.dialogData.estimateStatus = builder.EntityRecognizer.findEntity(args.intent.entities, 'EstimateStatus');
+                //estimate number
+                var estimateNumber = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceNumber');
+                if (estimateNumber){
+                    session.dialogData.estimateNumber = estimateNumber.entity;
+                }
+                //estimate Status (Open, Paid, Overdue)
+                var estimateStatus = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceStatus');
+                if(estimateStatus){
+                    if(estimateStatus.resolution.values[0] == "All"){
+                        session.dialogData.estimateStatus = estimateStatus.resolution.values[0];
+                    }else{
+                        session.send("Sorry I can't filter Estimates by Status, but you can specify dates or request All!");
+                    }
+                }
+                
             }
 
 
@@ -49,115 +61,175 @@ module.exports = function(bot) {
                 session.endConversation();
             }
             else{//search customer
-                console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
-                if (!session.conversationData.customerId || session.dialogData.customerName){
-                    var args= {customerName: session.dialogData.customerName};
-                    session.beginDialog('searchCustomer',args);
+                //#01 estimate Number: if user provided estimate Number, skip
+                if(session.dialogData.estimateNumber){
+                    next();
+                }else{
+                    console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
+                    if (!session.conversationData.customerId || session.dialogData.customerName){
+                        var args= {customerName: session.dialogData.customerName, displayMsg: false};
+                        session.beginDialog('searchCustomer',args);
+                    }else{
+                        next();
+                    }
+                }
+            }
+        },
+        function (session, results, next) {
+            if(session.dialogData.estimateNumber || session.dialogData.estimateStatus){
+                next();
+            }else{
+                if(!session.conversationData.customerId){
+                    session.endDialog('Sorry no Customer selected.');
+                }
+                
+                //check if the user typed the start date
+                if(!session.dialogData.estimateInitDate){
+                    builder.Prompts.time(session, "Please provide the initial Estimate Date:");
                 }else{
                     next();
                 }
             }
         },
         function (session, results, next) {
-            if(!session.conversationData.customerId){
-                session.endDialog('Sorry no Customer selected.');
-            }
-            
-            //check if the user typed the start date
-            if(!session.dialogData.estimateInitDate){
-                builder.Prompts.time(session, "Please provide the initial Estimate Date:");
-            }else{
+            //if user provided estimate number, skip
+            if(session.dialogData.estimateNumber || session.dialogData.estimateStatus){
                 next();
+            }else{
+                if(!session.dialogData.estimateInitDate){
+                    session.dialogData.estimateInitDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                }
+                    
+                //check if the user typed the final date
+                if(!session.dialogData.estimateFinalDate){
+                    builder.Prompts.time(session, "Please provide the final Estimate Date:");
+                }else{
+                    next();
+                }
             }
         },
         function (session, results, next) {
-            if(!session.dialogData.estimateInitDate){
-                session.dialogData.estimateInitDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
-            }
-                
-            //check if the user typed the final date
-            if(!session.dialogData.estimateFinalDate){
-                builder.Prompts.time(session, "Please provide the final Estimate Date:");
-            }else{
+            //if user provided estimate number, skip
+            if(session.dialogData.estimateNumber){
                 next();
-            }
-        },
-        function (session, results) {
-            if(!session.dialogData.estimateFinalDate){
-                session.dialogData.estimateFinalDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
-            }
-
-            session.send(`Getting estimates for:\n [b]Customer:[/b] ${session.conversationData.customerName} \n` +
-                    `[b]Dates:[/b] ${dateFormat(session.dialogData.estimateInitDate,'mediumDate')} to ${dateFormat(session.dialogData.estimateFinalDate,'mediumDate')}`);
-
-            var initDateISO = dateFormat(session.dialogData.estimateInitDate,'isoDate');
-            var finalDateISO = dateFormat(session.dialogData.estimateFinalDate,'isoDate');
-
-            const query = "SELECT * FROM Estimate WHERE  TxnDate >= '"+initDateISO+"' and TxnDate <= '"+finalDateISO+"' and CustomerRef = '"+session.conversationData.customerId+"'";
-
-            //Search for invoices on Quickbooks API
-            qb.queryQuickbooks(session, query, (error, data)=>{
-                if(error){
-                     if(error.code == 888 || error.code == 999){
-                         console.log(error.msg);
-                     }else if(error.code == 404){
-                         //token expired
-                         session.send("Sorry you need to login again into your account.");
-                         session.beginDialog('login');
-                     }
-                 } 
-                 else{
-                    if(data.Estimate){
-                        var estimates = {};
-
-                        for(var i=0; i<= data.Estimate.length-1; i++){
-                            var estimate = {
-                                id: data.Estimate[i].Id,
-                                docNumber: data.Estimate[i].DocNumber,
-                                txnDate: data.Estimate[i].TxnDate,
-                                totalAmt: data.Estimate[i].TotalAmt,
-                                status: data.Estimate[i].TxnStatus
-                            };
-
-                            var estimateDisplay= "[b]#"+estimate.docNumber+"[/b]  -  Date: "+dateFormat(estimate.txnDate,'mediumDate')+" | Total: "+formatter.format(estimate.totalAmt)+" | "+estimate.status;//+"[mxButton='bot_postback' client_id='YzIxODgyMzN' payload='xxx']Create Invoice[/mxButton]";
-
-                            estimates[estimateDisplay] = estimate;
-                        }
-                        session.dialogData.estimates = estimates;
-                        console.log("estimates: "+JSON.stringify(session.dialogData.estimates));
-                        
-                        session.send("I found "+data.maxResults+" estimate(s).");
-                        builder.Prompts.choice(session, "Please select the estimate to see it:", estimates, { listStyle: 2 });
-                    }else{
-                        session.send("Sorry. I didn't find any estimate with the parameters.");
-                        session.endDialog();
-                    }
-                 }
-            });
-        },
-        function (session, results) {
-            console.log("searchEstimate results:"+JSON.stringify(results));
-            var estimate = session.dialogData.estimates[results.response.entity];
-            session.send(`Getting Estimate #${estimate.docNumber}:`); 
-            
-            //Get specific estimate PDF on Quickbooks API
-            qb.getPDF(session, estimate.id, estimate.docNumber, "estimate", (err, data)=>{
-                if(err){
-                    console.error(err);
-                    session.endDialog("Error to download the PDF");
-                }else{
-                    session.endDialog("There you go.");
+            }else{
+                if(!session.dialogData.estimateFinalDate && results.response){
+                    session.dialogData.estimateFinalDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
                 }
-            });
+            
+                //create the base query
+                let query = "SELECT * FROM Estimate WHERE CustomerRef = '"+session.conversationData.customerId+"'";
+
+                //create the confirmation msg
+                var msg = `Getting estimates for:\n [b]Customer:[/b] ${session.conversationData.customerName} \n`;
+                if(session.dialogData.estimateInitDate && session.dialogData.estimateFinalDate){
+                    msg += `[b]Dates:[/b] ${dateFormat(session.dialogData.estimateInitDate,'mediumDate')} to ${dateFormat(session.dialogData.estimateFinalDate,'mediumDate')} \n`;
+                    query += " and TxnDate >= '"+dateFormat(session.dialogData.estimateInitDate,'isoDate')+"' and TxnDate <= '"+dateFormat(session.dialogData.estimateFinalDate,'isoDate')+"'";
+                }
+                if(session.dialogData.estimateStatus){
+                    msg += `[b]Status:[/b] ${session.dialogData.estimateStatus}`;
+                }
+
+                session.send(msg);
+
+                //Search for estimates on Quickbooks API
+                qb.queryQuickbooks(session, query, (error, data)=>{
+                    if(error){
+                        if(error.code == 888 || error.code == 999){
+                            console.log(error.msg);
+                        }else if(error.code == 404){
+                            //token expired
+                            session.send("Sorry you need to login again into your account.");
+                            session.beginDialog('login');
+                        }
+                    } 
+                    else{
+                        if(data.Estimate){
+                            
+                            var estimates = {};
+
+                            for(var i=0; i<= data.Estimate.length-1; i++){
+                                var estimate = {
+                                    id: data.Estimate[i].Id,
+                                    docNumber: data.Estimate[i].DocNumber,
+                                    txnDate: data.Estimate[i].TxnDate,
+                                    totalAmt: data.Estimate[i].TotalAmt,
+                                    status: data.Estimate[i].TxnStatus
+                                };
+
+                                var estimateDisplay= "[b]#"+estimate.docNumber+"[/b]  -  Date: "+dateFormat(estimate.txnDate,'mediumDate')+" | Total: "+formatter.format(estimate.totalAmt)+" | "+estimate.status;
+
+                                estimates[estimateDisplay] = estimate;
+                            }
+                            session.dialogData.estimates = estimates;
+                            console.log("estimates: "+JSON.stringify(session.dialogData.estimates));
+                            builder.Prompts.choice(session, "I found "+data.maxResults+" estimate(s).\nPlease select the estimate to see it:", estimates, { listStyle: 2 });
+                        }else{
+                            session.send("Sorry. I didn't find any estimate with the parameters.");
+                            session.endDialog();
+                        }
+                    }
+                });
+            }
+        },
+        function (session, results) {
+            //if user provided estimate number
+            if(session.dialogData.estimateNumber){
+                var query = "Select * from Estimate where DocNumber = '"+session.dialogData.estimateNumber+"'";
+
+                //get the estimate ID
+                qb.queryQuickbooks(session, query, (error, res)=>{
+                   if(error){
+                        if(error.code == 888 || error.code == 999){
+                            console.log(error.msg);
+                        }else if(error.code == 404){
+                            //token expired
+                            session.send("Sorry you need to login again into your account.");
+                            session.beginDialog('login');
+                        }
+                    } 
+                    else{
+                        if(res.Estimate && res.Estimate.length > 0){
+                            var estimate = res.Estimate[0];
+
+                            // Get specific estimate PDF on Quickbooks API
+                            qb.getPDF(session, estimate.Id, estimate.DocNumber, "estimate", (err, data)=>{
+                                if(err){
+                                    console.error(err);
+                                    session.endDialog("Error to download the PDF");
+                                }else{
+                                    session.endDialog("There you go.");
+                                }
+                            });
+                        }else{
+                            session.endDialog("Sorry. I didn't find any estimate with that number.");
+                        }
+                    }
+                });
+            }
+            else{
+                console.log("searchEstimate results:"+JSON.stringify(results));
+                var estimate = session.dialogData.estimates[results.response.entity];
+                session.send(`Getting Estimate #${estimate.docNumber}:`); 
+                
+                //Get specific estimate PDF on Quickbooks API
+                qb.getPDF(session, estimate.id, estimate.docNumber, "estimate", (err, data)=>{
+                    if(err){
+                        console.error(err);
+                        session.endDialog("Error to download the PDF");
+                    }else{
+                        session.endDialog("There you go.");
+                    }
+                });
+            }
         }
     ])
     .triggerAction({
         matches: 'searchEstimate'
     })
     .cancelAction(
-        "cancelSearchEstimate", "Type 'ok' to continue.", {
-            matches: /^cancel$/i,
-            confirmPrompt: "This will cancel your search. Are you sure?"
+        "cancelSearchEstimate", "Ok. Estimate search canceled!", {
+            matches: /^cancel$/i
     })
     .reloadAction(
         "restartSearchEstimate", "Ok. Let's start over.",{
@@ -171,7 +243,7 @@ module.exports = function(bot) {
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     /// Dialog: promoteEstimate 
-    /// Description: convert an existing estimate to an invoice
+    /// Description: convert an existing estimate to an estimate
     ////////////////////////////////////////////////////////////////////////////////////////////////
     bot.dialog("promoteEstimate",[
         function (session, args, next) {

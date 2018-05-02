@@ -17,16 +17,17 @@ module.exports = function(bot) {
                     if(customerName){
                         session.dialogData.customerName = customerName.entity;
                     }
-                }
 
-                //estimate Status (Open, Paid, Overdue)
-                var allCustomers = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceStatus');
-                if(allCustomers){
-                    if(allCustomers.resolution.values[0] == "All"){
-                        session.dialogData.allCustomers = allCustomers.resolution.values[0];
+                    //estimate Status (Open, Paid, Overdue)
+                    var allCustomers = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceStatus');
+                    if(allCustomers){
+                        if(allCustomers.resolution.values[0] == "All"){
+                            session.dialogData.allCustomers = allCustomers.resolution.values[0];
+                        }
                     }
                 }
             }
+                
             
             //check if there is a token
             Token.getToken(session.message.user.id, (err, result)=>{

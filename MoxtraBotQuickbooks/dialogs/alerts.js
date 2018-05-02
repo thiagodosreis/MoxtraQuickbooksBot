@@ -28,7 +28,8 @@ module.exports = function(bot) {
                                         i++;   
                                         if(s.frequency == "specific_day"){
                                             var date = new Date(s.specific_date);
-                                            msg += `${i}. Scheduled: ${s.resource.replace('_',' ').toUpperCase()} | ${date.getMonth()}/${date.getDate()}/${date.getFullYear()} at ${date.getHours()}:${date.getMinutes().toString().padStart(2,'0')} hr\n`;
+                                            dateFormat.masks.eventTime = "mm/dd/yy 'at' h:MMtt";
+                                            msg += `${i}. Scheduled: ${s.resource.replace('_',' ').toUpperCase()} | ${dateFormat(date, "eventTime")} hr\n`;
                                         }else{
                                             msg += i+". Scheduled: "+s.resource.replace('_',' ').toUpperCase() + " | " + s.frequency.toUpperCase() + " | " + s.time + " hr\n";
                                         }
@@ -45,12 +46,12 @@ module.exports = function(bot) {
                                                           
                             });
                             if(i == 0){
-                                msg = "There is no alerts for you in this binder.";
+                                msg = "There are no scheduled alerts for you in this binder.";
                             }
 
                             session.endDialog(msg);
                         }else{
-                            session.endDialog("There is no alerts for you in this binder.");            
+                            session.endDialog("There are no scheduled alerts for you in this binder.");            
                         }
                     }
                 });

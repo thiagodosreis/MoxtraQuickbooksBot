@@ -4,7 +4,6 @@ const Token = require('./../modules/token');
 
 module.exports = function(bot) { 
 
-
     bot.dialog("showAlerts",[
         function (session, args, next) {
             if(session.message.binder_id && session.message.user.id){
@@ -16,7 +15,6 @@ module.exports = function(bot) {
                         console.error('showScheduledAlerts: '+err);
                     }else{
                         console.log("docs length:"+docs.length);
-
 
                         if(docs.length > 0){
                             let msg = "[b]Alerts:[/b]\n";
@@ -46,12 +44,14 @@ module.exports = function(bot) {
                                                           
                             });
                             if(i == 0){
-                                msg = "There are no scheduled alerts for you in this binder.";
+                                msg = `There are no scheduled alerts for you in this binder.
+                                [mxButton=bot_postback payload="help_alerts" client_id="${session.message.client_id}"]Help with Alerts[/mxButton]`;
                             }
-
                             session.endDialog(msg);
                         }else{
-                            session.endDialog("There are no scheduled alerts for you in this binder.");            
+                            var msg = `There are no scheduled alerts for you in this binder.
+                                [mxButton=bot_postback payload="help_alerts" client_id="${session.message.client_id}"]Help with Alerts[/mxButton]`;
+                            session.endDialog(msg);            
                         }
                     }
                 });

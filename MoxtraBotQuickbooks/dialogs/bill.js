@@ -81,7 +81,7 @@ module.exports = function(bot) {
                 }
                 
                 //#03: bill Status: check if user provided it
-                if(!session.dialogData.billInitDate){
+                if(!session.dialogData || !session.dialogData.billInitDate){
                     builder.Prompts.time(session, "Please provide the initial bill Due Date:");
                 }else{
                     next();

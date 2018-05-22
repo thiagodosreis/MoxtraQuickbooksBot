@@ -1,2 +1,5 @@
 node_modules/
 pdfs/*
+.env-dev
+.env-prd
+.env-san

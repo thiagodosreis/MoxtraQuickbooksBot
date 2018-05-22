@@ -12,7 +12,7 @@ module.exports = function(bot) {
             //getting arguments typed by the user
             if(args && args.intent && args.intent.entities && args.intent.entities.length > 0){
                 //customer
-                var customerName = builder.EntityRecognizer.findEntity(args.intent.entities, 'CustomerName');
+                var customerName = builder.EntityRecognizer.findEntity(args.intent.entities, 'CustomerVendorName');
                 if (customerName){
                     session.dialogData.customerName = customerName.entity;
                 }

@@ -135,13 +135,7 @@ var bot = new builder.UniversalBot(connector, [
         //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt4\" client_id=\""+session.message.client_id+"\"]Invoice #1014[/mxButton][/td][/tr]"+    
         // "[/table]";
 
-        
-        const msg = "Sorry, I didn't understand that. You can try things like:\n"+
-        "- Get me estimates.\n"+
-        "- Show me overdue invoices.\n"+
-        "- List me sales receipt for customer John.\n"+
-        "- Bring me Customer Balance Report.";
-
+        const msg = "I'm sorry, I don't understand! Please type [i]help[/i] for assistance.";
         session.send(msg);
     }
 ]).set('storage', inMemoryStorage); // Register in-memory storage
@@ -165,6 +159,7 @@ require('./dialogs/reports/receivable')(bot);
 require('./dialogs/reports/payable')(bot);
 require('./dialogs/vendor')(bot);
 require('./dialogs/bill')(bot);
+require('./dialogs/help')(bot);
 
 //Start Scheduled Alerts
 require('./modules/job');

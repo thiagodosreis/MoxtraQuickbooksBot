@@ -77,32 +77,6 @@ database.connect(() => {
             
         });
     });
-    
-    // app.get("/webhooks", function (req, res, next) {
-    //     bot.handleGetRequest(req, res, database, (err, data)=>{
-    //         if(!err){
-    //             //store information in the browser
-    //             res.cookie('user_id', data.user_id);
-    //             res.cookie('binder_id', data.binder_id);
-    //             res.cookie('org_id', data.org_id);
-    //             res.cookie('user_name', data.username);
-
-    //             oauth2.auth(req, res);
-    //         }
-    //     });
-    // });
-
-
-    // app.get("/oauth2/callback", function (req, res) {
-    //     var cookies = cookie.parse(req.headers.cookie || '');
-
-    //     if (!cookies.user_id || !cookies.binder_id || !cookies.org_id) {
-    //         console.error("Unable to get user_id, binder_id and org_id from Cookies!");
-    //         res.sendStatus(400);
-    //     } else {
-    //         oauth2.callback(req, res, cookies);
-    //     }
-    // });
 
     // ******** Error handler ***********
     app.use(function (err, req, res, next) {
@@ -118,7 +92,7 @@ database.connect(() => {
 
     // ******** Start Server ***********
     app.set('host', process.env.HOST || 'localhost');
-    app.set('port', process.env.PORT || 3000);
+    app.set('port', process.env.PORT || 3001);
     app.listen(app.get('port'), function () {
         console.log('Server started: http://%s:%s', app.get('host'), app.get('port'));
     });
@@ -133,13 +107,25 @@ database.connect(() => {
     
             getMoxtraToken(chat.botApp, (token)=>{
                 chat.setAccessToken(token.access_token);    
-                chat.sendText(`@${username} Welcome to MoxtraBot for Quickbooks!!`);
+                chat.sendText(`[b][size=14]Welcome to Quickbooks Bot![/size][/b]\n
+                    [b]@${username}[/b], to get started, I'll need to connect to your account.`);
+
+                chat.comment = { text: "login" };
+                sendMessagesMS(chat);
             });
+
+            // chat.comment = { text: "welcome" };
+            // sendMessagesMS(chat);
         });
     
         bot.on('bot_uninstalled', (chat) => {
-            const binder_id = chat.binder_id;
-            console.log(`Bot uninstalled on ${binder_id}`);
+            // const binder_id = chat.binder_id;
+            // console.log(`Bot uninstalled on ${binder_id}`);
+
+            getMoxtraToken(chat.botApp, (token)=>{
+                chat.setAccessToken(token.access_token);    
+                chat.sendText(`Thank you for using Quickbooks Bot. See you later!`);
+            });
         });
     
         bot.on('bot_postback', (chat) => {

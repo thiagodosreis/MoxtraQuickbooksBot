@@ -107,7 +107,7 @@ module.exports = function(bot) {
             session.conversationData.vendorName = session.dialogData.vendorName = session.dialogData.vendors[results.response.entity].name;
 
             if(session.dialogData.displayMsg){
-                session.endDialog(`Vendor selected.\n Name: [b]${session.conversationData.vendorName}[/b] - ID: ${session.conversationData.vendorId}`); 
+                session.endDialog(`Vendor selected.\n Name: [b]${session.conversationData.vendorName}[/b]`); 
             }else{
                 session.endDialog();
             }

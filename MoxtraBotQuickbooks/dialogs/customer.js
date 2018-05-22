@@ -47,16 +47,17 @@ module.exports = function(bot) {
         },
         function (session, results, next) {
             if(results.response){
-                session.dialogData.customerName = results.response;
+                if(results.response.toLowerCase() == "all"){
+                    session.dialogData.allCustomers = true;
+                }else{
+                    session.dialogData.customerName = results.response;
+                }
             }
-            // session.send("Searching for customer "+session.dialogData.customerName+" ...");
 
             let query = "Select Id, FullyQualifiedName from Customer";
-
             if(!session.dialogData.allCustomers && session.dialogData.customerName){
                 query += " where FullyQualifiedName like%20%27%25"+session.dialogData.customerName+"%25%27";
             }
-
 
             //Search for invoices on Quickbooks API
             qb.queryQuickbooks(session, query, (error, data)=>{
@@ -106,7 +107,7 @@ module.exports = function(bot) {
             session.conversationData.customerName = session.dialogData.customerName = session.dialogData.customers[results.response.entity].name;
 
             if(session.dialogData.displayMsg){
-                session.endDialog(`Customer selected.\n Name: [b]${session.conversationData.customerName}[/b] - ID: ${session.conversationData.customerId}`); 
+                session.endDialog(`Customer selected.\n Name: [b]${session.conversationData.customerName}[/b]`); 
             }
             else{
                 session.endDialog();

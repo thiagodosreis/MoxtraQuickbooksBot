@@ -77,7 +77,7 @@ function presentAPIresult(res, err, result){
         res.status(500);
         res.send(err);
     }else{
-        res.status(201);
+        res.status(200);
         res.send(result);
     }
 }

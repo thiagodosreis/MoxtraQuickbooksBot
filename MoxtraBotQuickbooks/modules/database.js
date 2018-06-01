@@ -50,29 +50,26 @@ module.exports = {
         });
     },
 
-    getQBToken: (user_id, callback) => {
+    getQBToken: (org_id, client_id, callback) => {
         const collec = db.collection('tokens');
-        const query = {_id: user_id};
+        const query = {"bot.org_id": org_id, "bot.client_id": client_id};
     
-        console.log("\n\n********* DATA BASE: GET TOKEN *********");
-
         collec.findOne(query, (err, doc)=>{
             assert.equal(null, err);
     
             if(!doc){
-                callback("Error: No token with the user_id: "+user_id+" found in the DB.", null);
+                callback(`Error: No token with the Org_id: ${org_id} and Client_id: ${client_id} found in the DB.`, null);
             }else{
                 callback(null, doc);
             }
         });
     },
 
-    updateQBToken: (user_id, token, callback) => {
+    updateQBToken: (tokenObj, callback) => {
         const collec = db.collection('tokens');
     
-        console.log("\n\n********* DATA BASE: UPDATE TOKEN *********");
-        if(user_id && token){
-            collec.updateOne({_id: user_id}, {$set: token }, {upsert: true} , (err, r)=>{
+        if(tokenObj){        
+            collec.updateOne({"bot.org_id": tokenObj.bot.org_id, "bot.client_id": tokenObj.bot.client_id}, {$set: tokenObj }, {upsert: true} , (err, r)=>{
                 if(err){
                     callback(err, null);
                 }else{

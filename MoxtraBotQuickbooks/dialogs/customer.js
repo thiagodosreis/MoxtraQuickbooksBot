@@ -27,10 +27,9 @@ module.exports = function(bot) {
                     }
                 }
             }
-                
             
             //check if there is a token
-            Token.getToken(session.message.user.id, (err, result)=>{
+            Token.getToken(session.message.org_id, session.message.client_id, (err, result)=>{
                 if(!result){
                     session.beginDialog("login");    
                 }else{
@@ -59,15 +58,14 @@ module.exports = function(bot) {
                 query += " where FullyQualifiedName like%20%27%25"+session.dialogData.customerName+"%25%27";
             }
 
-            //Search for invoices on Quickbooks API
+            //Search for customers in Quickbooks API
             qb.queryQuickbooks(session, query, (error, data)=>{
                 if(error){
                     if(error.code == 888 || error.code == 999){
                         console.log(error.msg);
                     }else if(error.code == 401){
-                        //token expired
-                        session.send("Sorry, your QuickBooks session has expired. You need to login again into your account.");
-                        session.beginDialog('login');
+                        //token not valid
+                        session.endDialog("The access to QuickBooks was denied! Please, ask your Quickbooks Admin to log in again.");
                     }else{
                         session.send("Sorry. I didn't find any customer with that name!");
                         session.endDialog();

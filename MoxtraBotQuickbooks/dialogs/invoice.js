@@ -6,7 +6,7 @@ const Token = require('./../modules/token');
 module.exports = function(bot) {
     bot.dialog("searchInvoice",[
         function (session, args, next) {
-            console.log("searchInvoice args:"+JSON.stringify(args));
+            // console.log("searchInvoice args:"+JSON.stringify(args));
 
             //getting arguments typed by the user
             if(args && args.intent && args.intent.entities && args.intent.entities.length > 0){
@@ -34,7 +34,7 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            Token.getToken(session.message.user.id, (err, result)=>{
+            Token.getToken(session.message.org_id, session.message.client_id, (err, result)=>{
                 if(!result){
                     session.beginDialog("login");    
                 }else{
@@ -42,7 +42,7 @@ module.exports = function(bot) {
                 }
             });
 
-            console.log("session.dialogData:"+JSON.stringify(session.dialogData));
+            // console.log("session.dialogData:"+JSON.stringify(session.dialogData));
         },
         function (session, results, next) {
             //not logged in
@@ -56,7 +56,7 @@ module.exports = function(bot) {
                     next();
                 }else{
                     //#02 Search for customer
-                    console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
+                    // console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
                     if (!session.conversationData.customerId || session.dialogData.customerName){
                         var args= {customerName: session.dialogData.customerName, displayMsg: false};
                         session.beginDialog('searchCustomer',args);
@@ -178,7 +178,7 @@ module.exports = function(bot) {
                                 invoices[invoiceDisplay] = invoice;
                             }
                             session.dialogData.invoices = invoices;
-                            console.log("invoices: "+JSON.stringify(session.dialogData.invoices));
+                            // console.log("invoices: "+JSON.stringify(session.dialogData.invoices));
                             
                             builder.Prompts.choice(session, "I found "+data.maxResults+" invoice(s).\nPlease select the invoice you want to see:", invoices, { listStyle: 2 });
                         
@@ -226,7 +226,7 @@ module.exports = function(bot) {
                 });
             }
             else{
-                console.log("searchInvoice results:"+JSON.stringify(results));
+                // console.log("searchInvoice results:"+JSON.stringify(results));
                 invoice = session.dialogData.invoices[results.response.entity];
                 session.send(`Getting Invoice #${invoice.docNumber}:`); 
 

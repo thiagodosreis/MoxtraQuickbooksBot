@@ -7,8 +7,10 @@ const report = require('./../../modules/report-pdfmaker');
 module.exports = function(bot) {
     bot.dialog("reportAR",[
         function (session, args, next) {
+            console.log("GOT AR REPORT REQUEST! SERVER 01");
+            
             //check if there is a token
-            Token.getToken(session.message.user.id, (err, result)=>{
+            Token.getToken(session.message.org_id, session.message.client_id, (err, result)=>{
                 if(!result){
                     session.beginDialog("login");    
                 }else{
@@ -32,7 +34,7 @@ function generatesReport(session, reportUrl){
     //get the json for the report
     qb.getReports(session, reportUrl, (err, result)=>{
         if(err){
-            console.log('Error getting Report Data for A: '+err);
+            console.log('Error getting Report Data for A: '+JSON.stringify(err));
             session.endDialog("Sorry I couldn't get the AR Report data from Quickbooks.");
         }
         else{
@@ -62,8 +64,9 @@ function generatesReport(session, reportUrl){
 
                 var h2 = "A/R AGING SUMMARY";
                 var h3 = 'As of '+dateFormat(result.Header.Time,'longDate');
+                var timestamp = new Date().getUTCMilliseconds();
 
-                report.generateReport(session, h2, h3, items, 'AR-Aging-Summary.pdf');
+                report.generateReport(session, h2, h3, items, 'AR-Aging-Summary-'+timestamp+'.pdf');
             }
             else{
                 session.endDialog("Sorry there is no report available for this customer.");

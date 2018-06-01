@@ -204,6 +204,7 @@ module.exports = function(bot) {
         },
         function (session, results, next) {
             if (results.response) {
+                console.log("time:"+results.response);
                 var date = new Date(builder.EntityRecognizer.resolveTime([results.response]));
                 session.dialogData.time = date.getHours().padStart(2, "0")+":"+date.getMinutes().padStart(2, "0");
             }
@@ -266,64 +267,77 @@ function updateAlerts(alert, session){
             return;
         }
 
-
-        //insert/update operation
-        if (alert.action == "start"){
-            upsert = true;
-            delete alert.action;
-
-            query = {
-                user:{
-                    id: session.message.user.id,
-                    name: session.message.user.name
-                }, 
-                binder: {
-                    id: session.message.binder_id,
-                    client_id: session.message.client_id,
-                    secret: doc.secret,
-                    org_id: session.message.org_id
-                }
-            };  
-        
-
-            // Realtime
-            if(alert.resource == "invoice" || alert.resource == "estimate" || alert.resource == "sales_receipt" || alert.resource == "bill"){
-                update = {$addToSet: {"alerts.realtime": alert.resource}};
-            }
-            else{//Scheduled
-                update = {$addToSet: {"alerts.scheduled": alert}};
-            }
-        }
-        
-        //delete operation
-        if(alert.action == "stop"){
-            query = {"user.id":session.message.user.id, "binder.id":session.message.binder_id};
-            
-            //Realtime
-            if(alert.resource == "invoice" || alert.resource == "estimate" || alert.resource == "sales_receipt" || alert.resource == "bill"){
-                update = {$pull: {"alerts.realtime": alert.resource}};
-            }
-            else{//Scheduled
-                update = {$pull: {"alerts.scheduled": {"resource": alert.resource}}};
-            }
-        }
-        
-        database.updateAlerts(query, update, upsert, (err, result)=>{
+        database.getQBToken(session.message.org_id, session.message.client_id, (err, tokenOjb)=>{
             if(err){
-                session.endDialog('Sorry, I couldn\'t perform the alert operation.');
-                console.error('Error updating alert:'+JSON.stringify(alert) + "\nDetails: "+err);
+                console.error(`Error getting QB Token for org: ${session.message.org_id} and client: ${session.message.client_id} `);
+                session.endDialog("Sorry. I can't find your company to set up the alerts.");
                 return;
             }
 
-            if(result){
-                session.endDialog('Alert updated successfully!');
-            }else{
-                session.endDialog('You already have this alert.');
+            if (tokenOjb.company.realmId){
+                //insert/update operation
+                if (alert.action == "start"){
+                    upsert = true;
+                    delete alert.action;
+    
+                    query = {
+                        realmId: tokenOjb.company.realmId,
+                        user:{
+                            id: session.message.user.id,
+                            name: session.message.user.name
+                        }, 
+                        binder: {
+                            id: session.message.binder_id,
+                            client_id: session.message.client_id,
+                            secret: doc.secret,
+                            org_id: session.message.org_id
+                        }
+                    };  
+                
+    
+                    // Realtime
+                    if(alert.resource == "invoice" || alert.resource == "estimate" || alert.resource == "sales_receipt" || alert.resource == "bill"){
+                        update = {$addToSet: {"alerts.realtime": alert.resource}};
+                    }
+                    else{//Scheduled
+                        update = {$addToSet: {"alerts.scheduled": alert}};
+                    }
+                }
+                
+                //delete operation
+                if(alert.action == "stop"){
+                    query = {"realmId":tokenOjb.company.realmId,"user.id":session.message.user.id, "binder.id":session.message.binder_id};
+                    
+                    //Realtime
+                    if(alert.resource == "invoice" || alert.resource == "estimate" || alert.resource == "sales_receipt" || alert.resource == "bill"){
+                        update = {$pull: {"alerts.realtime": alert.resource}};
+                    }
+                    else{//Scheduled
+                        update = {$pull: {"alerts.scheduled": {"resource": alert.resource}}};
+                    }
+                }
+                
+                database.updateAlerts(query, update, upsert, (err, result)=>{
+                    if(err){
+                        session.endDialog('Sorry, I couldn\'t perform the alert operation.');
+                        console.error('Error updating alert:'+JSON.stringify(alert) + "\nDetails: "+err);
+                        return;
+                    }
+    
+                    if(result){
+                        session.endDialog('Alert updated successfully!');
+                    }else{
+                        session.endDialog('You already have this alert.');
+                    }
+    
+                    session.beginDialog('showAlerts');
+                });
             }
-
-            session.beginDialog('showAlerts');
+            else{
+                session.send('Sorry, I cound\'t identify your company.');
+                session.beginDialog("login");
+            }
         });
-
     });
     
 }

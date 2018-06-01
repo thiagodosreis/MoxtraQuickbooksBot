@@ -19,7 +19,7 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            Token.getToken(session.message.user.id, (err, result)=>{
+            Token.getToken(session.message.org_id, session.message.client_id, (err, result)=>{
                 if(!result){
                     session.beginDialog("login");    
                 }else{
@@ -100,8 +100,9 @@ function generatesReport(session, reportUrl){
 
                 var h2 = "CUSTOMER BALANCE DETAIL";
                 var h3 = 'As of '+dateFormat(result.Header.Time,'longDate');
+                var timestamp = new Date().getUTCMilliseconds();
 
-                report.generateReport(session, h2, h3, items, 'CustomerBalance.pdf');
+                report.generateReport(session, h2, h3, items, 'CustomerBalance-'+timestamp+'.pdf');
             }
             else{
                 session.endDialog("Sorry there is no report available for this customer.");

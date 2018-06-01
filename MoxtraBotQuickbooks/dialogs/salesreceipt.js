@@ -34,7 +34,7 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            Token.getToken(session.message.user.id, (err, result)=>{
+            Token.getToken(session.message.org_id, session.message.client_id, (err, result)=>{
                 if(!result){
                     session.beginDialog("login");    
                 }else{
@@ -263,7 +263,7 @@ module.exports = function(bot) {
             }
 
             //check if there is a token
-            Token.getToken(session.message.user.id, (err, result)=>{
+            Token.getToken(session.message.org_id, session.message.client_id, (err, result)=>{
                 if(!result){
                     session.beginDialog("login");    
                 }else{
@@ -327,6 +327,7 @@ module.exports = function(bot) {
                                         }
                                     }
                                     else{
+                                        // console.log(" ---- receipt:"+JSON.stringify(receipt));
                                         session.send("Sales Receipt #"+receipt.SalesReceipt.DocNumber+" is ready.");
                                         // builder.Prompts.confirm(session, "Do you want to see this invoice?");
                                     }
@@ -338,6 +339,9 @@ module.exports = function(bot) {
                         }
                     }
                 });
+            }else{
+                console.log("session.dialogData.invoiceNumber:"+session.dialogData.invoiceNumber);
+                session.endDialog("Sorry. I didn't identify the invoice");
             }
         }
     ])

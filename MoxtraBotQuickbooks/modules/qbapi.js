@@ -9,16 +9,16 @@ module.exports = {
         var error = {};
 
         console.log("\nQuery QuickBooks:\n"+query);
+        // console.log("\nsession.message:"+JSON.stringify(session.message));
 
         //check for User's Token
-        Token.getToken(session.message.user.id, (err, dbtoken)=>{
+        Token.getToken(session.message.org_id, session.message.client_id, (err, dbtoken)=>{
             // console.log("dbtoken:"+JSON.stringify(dbtoken));
-
 
             if(!dbtoken){
                 callback('no_token', null);
                 return;
-            }
+            } 
 
             if(!session || !query){
                 error.code = 999;
@@ -29,7 +29,7 @@ module.exports = {
                 return;
             }
 
-            const _url = baseurl+"/v3/company/"+dbtoken.realmId+"/query?query="+query;
+            const _url = baseurl+"/v3/company/"+dbtoken.company.realmId+"/query?query="+query;
             // console.log("url:"+_url);
             // console.log("token:"+dbtoken.token.access_token);
             request({
@@ -44,12 +44,15 @@ module.exports = {
                         console.error(error.msg);
                         callback(error, null);
                     }else{
-                        // console.log("\n\nresponse.statusCode: "+response.statusCode);
-                        // console.log("response:"+JSON.stringify(response));
+                        console.log("\n\nresponse.statusCode: "+response.statusCode);
+                        console.log("response:"+JSON.stringify(response));
 
                         if(response.statusCode != 200){
+                            //reseting the memory token for org
+                            Token.cleanInMemoryToken(session.message.org_id, session.message.client_id);
+
                             error.code = response.statusCode;
-                            error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
+                            error.msg = `queryQuickbooks: API call failed: UNAUTHORIZED! Status code: ${response.statusCode}`;
 
                             callback(error, null);
                             return;
@@ -58,10 +61,9 @@ module.exports = {
                         var res = JSON.parse(body);
                         callback(null, res.QueryResponse);
                     }
-                });
-
+                }
+            );
         });
-        
     },
 
     //Call QuickBooks APIs: Generic Invoice Update Function
@@ -69,7 +71,7 @@ module.exports = {
         var error = {};
 
         //check for User's Token
-        Token.getToken(session.message.user.id,(err, dbtoken)=>{
+        Token.getToken(session.message.org_id, session.message.client_id, (err, dbtoken)=>{
             if(!dbtoken){
                 callback('no_token', null);
                 return;
@@ -84,10 +86,10 @@ module.exports = {
                 return;
             }
 
-            var _url = baseurl+"/v3/company/"+dbtoken.realmId+"/"+type;
+            var _url = baseurl+"/v3/company/"+dbtoken.company.realmId+"/"+type;
             
-            console.log("_url:"+_url);
-            console.log("updateFields:"+JSON.stringify(updateFields));
+            // console.log("_url:"+_url);
+            // console.log("updateFields:"+JSON.stringify(updateFields));
 
             request({
                 method: 'post',
@@ -103,19 +105,15 @@ module.exports = {
                         console.error(error.msg);
                         callback(error, null);
                     }else{
+
                         if(response.statusCode != 200){
-                            //reseting the memory token for the user
-                            Token.storeToken(session.message.user.id, null,(err, result)=>{
-                                if(err){
-                                    callback(err, null);
-                                    return;
-                                }
+                            //reseting the memory token for org
+                            Token.cleanInMemoryToken(session.message.org_id, session.message.client_id);
 
-                                error.code = response.statusCode;
-                                error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
+                            error.code = response.statusCode;
+                            error.msg = `updateQuickBooks: API call failed: UNAUTHORIZED! Status code: ${response.statusCode}`;
 
-                                callback(error, null);
-                            });
+                            callback(error, null);
                         }else{//sucess
                             callback(null, response.body);
                         }
@@ -126,9 +124,9 @@ module.exports = {
     },
 
     getReports: function (session, reportUrl, callback){
-        //check for User's Token
+        var error = {};
         
-        Token.getToken(session.message.user.id,(err, dbtoken)=>{
+        Token.getToken(session.message.org_id, session.message.client_id,(err, dbtoken)=>{
             if(!dbtoken){
                 callback('no_token', null);
                 return;
@@ -143,7 +141,7 @@ module.exports = {
                 return;
             }
 
-            var _url = baseurl+"/v3/company/"+dbtoken.realmId+"/reports/"+reportUrl;
+            var _url = baseurl+"/v3/company/"+dbtoken.company.realmId+"/reports/"+reportUrl;
 
             request({
                 method: 'get',
@@ -151,26 +149,20 @@ module.exports = {
                 headers: {'Authorization': 'Bearer ' + dbtoken.token.access_token,
                             'Accept': 'application/json'}
                 }, 
-                function (error, response, body){
-                    if (error) {
-                        console.error('readQuickbooks: API call failed:', error);
+                function (err, response, body){
+                    if (err) {
+                        console.error('getReports: API call failed:', err);
                         callback(error, null);
                     }else{
                         if(response.statusCode != 200){
-                            
+                            //reseting the memory token for org
+                            Token.cleanInMemoryToken(session.message.org_id, session.message.client_id);
 
-                            //reseting the memory token for the user
-                            Token.storeToken(session.message.user.id, null,(err, result)=>{
-                                if(err){
-                                    callback(err, null);
-                                    return;
-                                }
+                            error.code = response.statusCode;
+                            error.msg = `getReports: API call failed: UNAUTHORIZED! Status code: ${response.statusCode}`;
 
-                                error.code = response.statusCode;
-                                error.msg = "updateQuickBooks: API call failed: UNAUTHORIZED. TOKEN EXPIRED!";
-
-                                callback(error, null);
-                            });
+                            callback(error, null);
+                            return;
                         }
 
                         var res = JSON.parse(body);
@@ -186,9 +178,10 @@ module.exports = {
 
     //Call QuickBooks APIs for Search Estimate
     getPDF: (session, id, docNum, type, callback)=>{
+        var error = {};
 
         //check for User's Token
-        Token.getToken(session.message.user.id,(err, dbtoken)=>{
+        Token.getToken(session.message.org_id, session.message.client_id,(err, dbtoken)=>{
             if(!dbtoken){
                 callback('no_token', null);
                 return;
@@ -203,9 +196,9 @@ module.exports = {
                 return;
             }
 
-            var _url = baseurl+"/v3/company/"+dbtoken.realmId+"/"+type+"/"+id+"/pdf";
+            var _url = baseurl+"/v3/company/"+dbtoken.company.realmId+"/"+type+"/"+id+"/pdf";
             var today = new Date();
-            var filename = docNum + "_"+type+"_" + today.getDate() + ".pdf";
+            var filename = docNum.replace(new RegExp('/', 'g'),"_") + "_"+type+"_" + today.getDate() + ".pdf";
             var file = fs.createWriteStream(__dirname+'/../pdfs/'+filename);
 
             request({
@@ -223,7 +216,7 @@ module.exports = {
     },
 
     //Pretending to be the DL Channel sending a message to Bot to get the return of OAuth 2.0 (Token)
-    postMessageDL: (message, user_id, user_name, conversationId)=>{
+    postMessageDL: (message, org_id, client_id, user_id, user_name, conversationId)=>{
         const baseurl = "https://directline.botframework.com/v3/directline/conversations/";
         const _url = baseurl+conversationId+"/activities";
         const directLineSecret = process.env.DL_SECRET;
@@ -241,7 +234,9 @@ module.exports = {
                         id: conversationId
                     },
             textFormat: "plain",
-            text: message
+            text: message,
+            org_id: org_id,
+            client_id: client_id
         }
 
         request({
@@ -261,6 +256,41 @@ module.exports = {
                         //callback(null, response.body);
                         return response.body;
                     }
+                }
+            });
+    },
+
+    getCompanyInfo: (tokenObj, callback)=>{
+        var error = {};
+        console.log(" --- Quering DB to get Company's name ---- ");
+        
+        const _url = baseurl+"/v3/company/"+tokenObj.company.realmId+"/query?query=select * from company";
+        request({
+                method: 'get',
+                url: _url,
+                headers: {'Authorization': 'Bearer ' + tokenObj.token.access_token,
+                        'Accept': 'application/json'}
+            }, function (err, response, body){
+                if (err) {
+                    error.code = 888;
+                    error.msg = 'getCompanyInfo: API call failed:', err;
+                    console.error(error.msg);
+                    callback(error, null);
+                }else{
+
+                    if(response.statusCode != 200){
+                        //reseting the memory token for org
+                        Token.cleanInMemoryToken(session.message.org_id, session.message.client_id);
+
+                        error.code = response.statusCode;
+                        error.msg = `getCompanyInfo: API call failed: UNAUTHORIZED! Status code: ${response.statusCode}`;
+
+                        callback(error, null);
+                        return;
+                    }
+
+                    var res = JSON.parse(body);
+                    callback(null, res.QueryResponse);
                 }
             });
     },

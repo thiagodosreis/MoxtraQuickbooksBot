@@ -13,7 +13,7 @@ global.builder = require('botbuilder');
 global.request = require('request');
 global.baseurl = process.env.QUICKBOOKS_BASEURL;
 
-global._address = {};
+// global._address = {}; //OAuth to store the cookies sent to Browser
 global._token = {}; //in memory token
 
 // Setup Restify Server
@@ -50,7 +50,7 @@ server.post('/api/alerts', (req, res)=>{
 
 server.get('/api/test', (req, res) => {
     console.log("Ok I got a http GET request for: /api/test");
-    res.end("Welcome to Moxtra Bot Server for Microsoft Bot Framework.");
+    res.end("Welcome to Moxtra Bot Server!");
 });
 
 const oauth2 = new OAuth2();
@@ -64,6 +64,7 @@ server.get('/oauth2',(req, res, next)=>{
             res.setCookie('user_id', data.user_id);
             res.setCookie('binder_id', data.binder_id);
             res.setCookie('org_id', data.org_id);
+            res.setCookie('client_id', data.client_id);
             res.setCookie('user_name', data.username);
             res.setCookie('conversationId',req.query['conversationid']);
 
@@ -88,17 +89,30 @@ server.get('/oauth2',(req, res, next)=>{
 server.get("/oauth2/callback", function (req, res) {
     const cookies = req.cookies;
 
-    if (!cookies.user_id || !cookies.binder_id || !cookies.org_id) {
+    if (!cookies.user_id || !cookies.binder_id || !cookies.org_id || !cookies.client_id) {
         res.status(400);
         console.error("Unable to get user_id, binder_id and org_id from Cookies!");
     } else {
         oauth2.callback(req, res, cookies, (err, token)=>{
             if(!err){
-                const stored_address = _address[cookies.user_id];
-                const user_id = cookies.user_id;
+                //create the obj to store in the DB
+                var tokenObj = {
+                    bot: {
+                        client_id: cookies.client_id,
+                        org_id: cookies.org_id
+                    },
+                    company: {
+                        realmId: token.realmId
+                    },
+                    token: token.token,
+                    user: {
+                        id: cookies.user_id,
+                        name: cookies.user_name
+                    }
+                };
                 
                 //store the token to the user
-                Token.storeToken(user_id, token, (err, result)=>{
+                Token.storeToken(tokenObj, (err, result)=>{
                     let msg;
                     if(err){
                         console.log("\nError storing token in DB.");
@@ -107,17 +121,17 @@ server.get("/oauth2/callback", function (req, res) {
                         msg = 'access_token_received';
                     }
 
-                    console.log("\nTOKEN:"+JSON.stringify(token));
-                    console.log('ConversationId from cookies:'+cookies.conversationId);
+                    // console.log("\nQUICKBOOKS TOKEN:"+JSON.stringify(token));
+                    // console.log('ConversationId from cookies:'+cookies.conversationId);
 
                     //Post a message to the DL pretending to be the Channel
-                    qb.postMessageDL(msg, user_id, cookies.user_name, cookies.conversationId, (err, result)=>{});
+                    qb.postMessageDL(msg, cookies.org_id, cookies.client_id, cookies.user_id, cookies.user_name, cookies.conversationId, (err, result)=>{});
                 });                
             }else{
                 console.log('\nerr:'+err);
 
                 //Post a message to the DL pretending to be the Channel
-                qb.postMessageDL('access_token_error', user_id, cookies.user_name, cookies.conversationId, (err, result)=>{});
+                qb.postMessageDL('access_token_error', cookies.org_id, cookies.client_id, cookies.user_id, cookies.user_name, cookies.conversationId, (err, result)=>{});
             }
         });
     }

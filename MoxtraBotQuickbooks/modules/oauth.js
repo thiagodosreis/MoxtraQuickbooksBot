@@ -101,7 +101,7 @@ OAuth2.prototype.isValid = (tokenObject)=>{
   const nowInSeconds = (new Date()).getTime() / 1000;
   const result = expirationWindowStart > nowInSeconds;
 
-  console.log("\n\nToken is valid? "+result)
+  // console.log("\n\nToken is valid? "+result)
   return result;
 }
 

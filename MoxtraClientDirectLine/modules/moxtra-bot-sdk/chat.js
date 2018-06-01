@@ -217,11 +217,10 @@ Chat.prototype.uploadRequest = function (body, file_path, audio_path) {
 		body: form
 	})
 		.then(res => {
-			console.log("res:"+JSON.stringify(res));
+			// console.log("res:"+JSON.stringify(res));
 			res.json();
 		})
 		.then(res => {
-			
 			if (res.error) {
 				console.log(res.error);
 			}

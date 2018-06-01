@@ -62,6 +62,7 @@ const runJob = (time)=>{
                 console.log('Feched doc:'+JSON.stringify(doc));
                 doc.alerts.scheduled.forEach((e)=>{
                     if(e.time == time){
+                        console.log("----- > SENDING ALERT FOR: "+JSON.stringify(e));
                         sendAlert(doc, e.resource);
                     }
                 });
@@ -90,8 +91,7 @@ const sendAlert = (alarm, resource)=>{
 
     const post_json = {
         "message_type": "comment_posted",
-        "binder_id": alarm.binder.id,
-        "client_id": alarm.binder.client_id,
+        "binder_id": alarm.binder.id,   "client_id": alarm.binder.client_id,
         "org_id": alarm.binder.org_id,    
         "event": {
             "user": {

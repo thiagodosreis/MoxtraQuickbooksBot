@@ -8,7 +8,7 @@ module.exports = function(bot) {
     bot.dialog("reportAP",[
         function (session, args, next) {
             //check if there is a token
-            Token.getToken(session.message.user.id, (err, result)=>{
+            Token.getToken(session.message.org_id, session.message.client_id, (err, result)=>{
                 if(!result){
                     session.beginDialog("login");    
                 }else{
@@ -66,13 +66,10 @@ function generatesReport(session, reportUrl){
 
                 report.generateReport(session, h2, h3, items, 'AP-Aging-Summary-'+timestamp+'.pdf');
                 //Math.floor((Math.random() * 9999) + 1)
-                
             }
             else{
-                session.send("Sorry there is no report available for this customer.");
+                session.endDialog("Sorry there is no report available for this customer.");
             }
-
-            // session.endConversation();
         }
     });
 }

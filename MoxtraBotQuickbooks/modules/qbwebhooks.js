@@ -130,7 +130,7 @@ const postMessageBinder = (text, binder_id, access_token)=>{
 	const url = process.env.MOXTRA_API + '/' + binder_id + '/messages';
     var body = { message: {text: text } };
 
-    console.log('Posting msg to Binder!');
+    console.log('Posting msg to Binder: '+binder_id);
 	// console.log("url: " + url + " body: " + JSON.stringify(body));
     // console.log("binder_id: " + binder_id);
     // console.log("text: " + text);
@@ -149,8 +149,9 @@ const postMessageBinder = (text, binder_id, access_token)=>{
             console.error(error);
         }else{
             if(response.statusCode != 200){
+                //TO DO: Delete the alert if the binder is not valid anymore.
                 console.log('Error postMessageBinder: response code: '+response.statusCode);
-                console.log('Error postMessageBinder: response body: '+response.body);
+                console.log('Error postMessageBinder: response body: '+JSON.stringify(response.body));
                 return;
             }else{//sucess
                 //callback(null, response.body);

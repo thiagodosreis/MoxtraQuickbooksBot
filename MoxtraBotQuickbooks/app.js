@@ -40,10 +40,10 @@ server.post('/api/messages', connector.listen());
 
 const qbalerts = require('./modules/qbwebhooks');
 server.post('/api/alerts', (req, res)=>{
-    console.log("Data received:"+JSON.stringify(req.body));
-    console.log("Called the function");
+    // console.log("Data received:"+JSON.stringify(req.body));
+    // console.log("Called the function");
     qbalerts.getQBwebhooks(req, res, database);
-    console.log("Sending 200 status");
+    // console.log("Sending 200 status");
     res.status(200);
     res.send();
 });
@@ -119,13 +119,20 @@ server.get("/oauth2/callback", function (req, res) {
                         msg = 'access_token_error';
                     }else{
                         msg = 'access_token_received';
+                        
+                        //update the realmId in the Alerts Collections
+                        database.updateAlerts({"binder.org_id":tokenObj.bot.org_id, "binder.client_id":tokenObj.bot.client_id}, {$set: {"company": tokenObj.company}}, false, (err, result)=>{
+                            if(err){
+                                console.error("Not possible to update the Company info in the Alert collections for new loggin: "+err);
+                            }
+                        });
                     }
 
                     // console.log("\nQUICKBOOKS TOKEN:"+JSON.stringify(token));
                     // console.log('ConversationId from cookies:'+cookies.conversationId);
 
                     //Post a message to the DL pretending to be the Channel
-                    qb.postMessageDL(msg, cookies.org_id, cookies.client_id, cookies.user_id, cookies.user_name, cookies.conversationId, (err, result)=>{});
+                    qb.postMessageDL(msg, cookies.org_id, cookies.client_id, cookies.user_id, cookies.user_name, cookies.conversationId, (err, result)=>{});                    
                 });                
             }else{
                 console.log('\nerr:'+err);
@@ -140,14 +147,16 @@ server.get("/oauth2/callback", function (req, res) {
 var inMemoryStorage = new builder.MemoryBotStorage();
 var bot = new builder.UniversalBot(connector, [
     function(session){
-        // session.send("Welcome to Moxtra Quickbooks Bot!");
+        /*
+            // session.send("Welcome to Moxtra Quickbooks Bot!");
 
-        // const msg= "Please select on option:[table]"+
-        //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt1\" client_id=\""+session.message.client_id+"\"]Invoice #1010[/mxButton][/td][/tr]"+
-        //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt2\" client_id=\""+session.message.client_id+"\"]Invoice #1012[/mxButton][/td][/tr]"+
-        //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt3\" client_id=\""+session.message.client_id+"\"]Invoice #1015[/mxButton][/td][/tr]"+
-        //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt4\" client_id=\""+session.message.client_id+"\"]Invoice #1014[/mxButton][/td][/tr]"+    
-        // "[/table]";
+            // const msg= "Please select on option:[table]"+
+            //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt1\" client_id=\""+session.message.client_id+"\"]Invoice #1010[/mxButton][/td][/tr]"+
+            //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt2\" client_id=\""+session.message.client_id+"\"]Invoice #1012[/mxButton][/td][/tr]"+
+            //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt3\" client_id=\""+session.message.client_id+"\"]Invoice #1015[/mxButton][/td][/tr]"+
+            //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt4\" client_id=\""+session.message.client_id+"\"]Invoice #1014[/mxButton][/td][/tr]"+    
+            // "[/table]";
+        */
 
         const msg = "I'm sorry, I don't understand! Please type [i]help[/i] for assistance.";
         session.send(msg);

@@ -145,7 +145,7 @@ module.exports = function(bot) {
                         }
                     } 
                     else{
-                        if(data.Invoice && data.Invoice.length > 0){
+                        if(data && data.Invoice && data.Invoice.length > 0){
                             
                             session.send(msg);
                             

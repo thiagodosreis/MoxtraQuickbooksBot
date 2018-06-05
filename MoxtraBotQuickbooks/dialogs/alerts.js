@@ -9,7 +9,7 @@ module.exports = function(bot) {
             if(session.message.binder_id && session.message.user.id){
                 const query = {"binder.id": session.message.binder_id, "user.id": session.message.user.id};
 
-                database.getAlerts(query, (err, docs)=>{
+                database.getAlerts(query, {"_id": 0, "alerts": 1 }, (err, docs)=>{
                     if(err){
                         session.endDialog("Sorry there was an error getting you alerts.");        
                         console.error('showScheduledAlerts: '+err);
@@ -40,8 +40,7 @@ module.exports = function(bot) {
                                         i++;
                                         msg += i+". Real-time: "+r.replace('_',' ').toUpperCase()+"\n";
                                     });
-                                }
-                                                          
+                                }      
                             });
                             if(i == 0){
                                 msg = `There are no scheduled alerts for you in this binder.
@@ -134,14 +133,12 @@ module.exports = function(bot) {
 
 
             if(!session.dialogData.resource){
-                var alerts = ["Invoices","Estimates", "Sales Receipt", "Bills", "AR Report", "AP Report"];
+                var alerts = ["Invoices", "Estimates", "Sales Receipt", "Bills", "AR Report", "AP Report"];
 
                 builder.Prompts.choice(session, "Please select the alert you want:", alerts, { listStyle: 2 });
             } else {
                 next();
             }
-
-
         },
         function (session, results, next) {
             if (results.response) {
@@ -166,7 +163,6 @@ module.exports = function(bot) {
                         session.dialogData.resource = "ap_report";
                         break;
                 }
-                
             }
             
 
@@ -274,14 +270,17 @@ function updateAlerts(alert, session){
                 return;
             }
 
-            if (tokenOjb.company.realmId){
+            if (tokenOjb.company){
                 //insert/update operation
                 if (alert.action == "start"){
                     upsert = true;
+                    update = {};
                     delete alert.action;
     
-                    query = {
-                        realmId: tokenOjb.company.realmId,
+                    query = {"user.id": session.message.user.id, "binder.id": session.message.binder_id};  
+                
+                    update.$set = {
+                        company: tokenOjb.company, 
                         user:{
                             id: session.message.user.id,
                             name: session.message.user.name
@@ -292,21 +291,20 @@ function updateAlerts(alert, session){
                             secret: doc.secret,
                             org_id: session.message.org_id
                         }
-                    };  
-                
-    
+                    };
+
                     // Realtime
                     if(alert.resource == "invoice" || alert.resource == "estimate" || alert.resource == "sales_receipt" || alert.resource == "bill"){
-                        update = {$addToSet: {"alerts.realtime": alert.resource}};
+                        update.$addToSet = {"alerts.realtime": alert.resource};
                     }
                     else{//Scheduled
-                        update = {$addToSet: {"alerts.scheduled": alert}};
+                        update.$addToSet = {"alerts.scheduled": alert};
                     }
                 }
                 
                 //delete operation
                 if(alert.action == "stop"){
-                    query = {"realmId":tokenOjb.company.realmId,"user.id":session.message.user.id, "binder.id":session.message.binder_id};
+                    query = {"user.id":session.message.user.id, "binder.id":session.message.binder_id};
                     
                     //Realtime
                     if(alert.resource == "invoice" || alert.resource == "estimate" || alert.resource == "sales_receipt" || alert.resource == "bill"){
@@ -318,6 +316,7 @@ function updateAlerts(alert, session){
                 }
                 
                 database.updateAlerts(query, update, upsert, (err, result)=>{
+
                     if(err){
                         session.endDialog('Sorry, I couldn\'t perform the alert operation.');
                         console.error('Error updating alert:'+JSON.stringify(alert) + "\nDetails: "+err);

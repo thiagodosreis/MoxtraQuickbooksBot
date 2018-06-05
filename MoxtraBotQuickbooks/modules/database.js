@@ -65,6 +65,20 @@ module.exports = {
         });
     },
 
+    queryQBToken: (query, callback) => {
+        const collec = db.collection('tokens');
+    
+        collec.findOne(query, (err, doc)=>{
+            assert.equal(null, err);
+    
+            if(!doc){
+                callback(`Error: No token for query: ${JSON.stringify(query)} found in the DB.`, null);
+            }else{
+                callback(null, doc);
+            }
+        });
+    },
+
     updateQBToken: (tokenObj, callback) => {
         const collec = db.collection('tokens');
     
@@ -85,21 +99,19 @@ module.exports = {
         }  
     },
 
-    getAlerts: (query, callback)=>{
+    getAlerts: (query, projection, callback)=>{
         const collec = db.collection('alerts');
-        // const projection = {"_id":0, "type":1, "alerts": 1};
-        console.log("query:"+JSON.stringify(query));
 
         //cursor to the query db (pointer only)
         const cursor = collec.find(query);
-        // cursor.project(projection);
+        cursor.project(projection);
+        cursor.sort({"binder.org_id": 1, "binder.client_id": 1});
 
         cursor.toArray((err, docs)=>{
             assert.equal(null, err);
             
             callback(null, docs);  
         });
-
     },
 
     updateAlerts: (query, update, upsert, callback)=>{

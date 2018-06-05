@@ -21,7 +21,7 @@ module.exports = function(bot) {
         function(session, results, next){
             //get information form QB
             const reportUrl = "AgedReceivables?minorversion=4";
-            generatesReport(session, reportUrl);
+            generateARreport(session, reportUrl);
         }
     ])
     .triggerAction( { matches: 'reportAR'
@@ -30,17 +30,17 @@ module.exports = function(bot) {
 }
 
 
-function generatesReport(session, reportUrl){
+function generateARreport(session, reportUrl){
     //get the json for the report
     qb.getReports(session, reportUrl, (err, result)=>{
         if(err){
-            console.log('Error getting Report Data for A: '+JSON.stringify(err));
+            console.log('Error getting Report Data for: '+JSON.stringify(err));
             session.endDialog("Sorry I couldn't get the AR Report data from Quickbooks.");
         }
         else{
             if(result.Rows){
                 session.send("This is the current Account Receivable report:");
-                console.log("Report result:"+JSON.stringify(result));
+                // console.log("Report result:"+JSON.stringify(result));
                 
                 //generate the itens
                 var items = [];

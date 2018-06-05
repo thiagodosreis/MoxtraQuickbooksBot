@@ -19,7 +19,7 @@ module.exports = function(bot) {
         function(session, results, next){
             //get information form QB
             const reportUrl = "AgedPayables?minorversion=4";
-            generatesReport(session, reportUrl);
+            generateAPreport(session, reportUrl);
         }
     ])
     .triggerAction( { matches: 'reportAP'
@@ -28,7 +28,7 @@ module.exports = function(bot) {
 }
 
 
-function generatesReport(session, reportUrl){
+function generateAPreport(session, reportUrl){
     //get the json for the report
     qb.getReports(session, reportUrl, (err, result)=>{
         if(err){

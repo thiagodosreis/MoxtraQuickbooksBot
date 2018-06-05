@@ -44,8 +44,8 @@ module.exports = {
                         console.error(error.msg);
                         callback(error, null);
                     }else{
-                        console.log("\n\nresponse.statusCode: "+response.statusCode);
-                        console.log("response:"+JSON.stringify(response));
+                        // console.log("\n\nresponse.statusCode: "+response.statusCode);
+                        // console.log("response:"+JSON.stringify(response));
 
                         if(response.statusCode != 200){
                             //reseting the memory token for org
@@ -159,7 +159,7 @@ module.exports = {
                             Token.cleanInMemoryToken(session.message.org_id, session.message.client_id);
 
                             error.code = response.statusCode;
-                            error.msg = `getReports: API call failed: UNAUTHORIZED! Status code: ${response.statusCode}`;
+                            error.msg = `getReports: API call failed: UNAUTHORIZED! org: ${session.message.org_id}, client: ${session.message.client_id}, Status code: ${response.statusCode}`;
 
                             callback(error, null);
                             return;

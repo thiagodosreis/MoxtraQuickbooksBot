@@ -13,18 +13,18 @@ let moxtra_tokens = {};
 
 module.exports = {
     getQBwebhooks: (req, res, db) => {
-        // console.log("Data received:"+JSON.stringify(req.body));
+        console.log("Data received:"+JSON.stringify(req.body));
         
         try{
             var qbEvents = req.body.eventNotifications;
         
             if(qbEvents && qbEvents.length > 0){
-                //Loop through the QB events
+                
+                //Loop through the QB events by Company/RealmID
                 qbEvents.forEach((e)=>{
-                    // TODO: store and check realmId in DB
-                    // e.realmId;
-        
-                    if(e.dataChangeEvent.entities){
+                    if(e.dataChangeEvent && e.dataChangeEvent.entities){
+                        
+                        //Loop through each Event
                         e.dataChangeEvent.entities.forEach((data)=>{
                             var date = new Date(data.lastUpdated)
     
@@ -33,21 +33,27 @@ module.exports = {
                             dateFormat.masks.eventTime = "mm/dd/yy 'at' h:MMtt";
 
                             let msg = "";    
-                            let query =  { "alerts.realtime": data.name.toLowerCase() };
+                            let event = data.name.toLowerCase();
 
                             if(data.name.toLowerCase() == "salesreceipt"){
-                                query =  { "alerts.realtime": "sales_receipt" };
+                                event = "sales_receipt";
                             }
-    
-                            //Get Binders from DB
-                            database.getAlerts(query, (err, docs)=>{
+
+                            const query = { "alerts.realtime": event,  "company.realmId": e.realmId};
+                            const proj = {"_id": 0, "binder": 1};
+                            // console.log("query:"+JSON.stringify(query) + JSON.stringify(proj) );
+
+                            //Get Binders for the Alerts from DB
+                            database.getAlerts(query, proj, (err, docs)=>{
                                 if(err){
                                     console.error('Error getting Alerts: '+err);
                                 }else{
-                                    docs.forEach((doc)=>{
+                                    //only if someone wants this information, go to QB to get more details
+                                    if(docs.length > 0){
 
-                                        //get details for the Resource from QB
-                                        getQBresourceDetails(doc.user.id, data.name, data.id, (err, resourceObj)=>{
+                                        //uses the org_id and client_id of the first alert to get the token
+                                        //make QB API request to get details for the Resource
+                                        getQBresourceDetails(docs[0].binder.org_id, docs[0].binder.client_id, data.name, data.id, (err, resourceObj)=>{
                                             if(err){
                                                 console.log(err);
                                                 return;
@@ -63,16 +69,21 @@ module.exports = {
                                                 msg = `[b]Alert:[/b] ${data.name} ID ${data.id} ${data.operation.toLowerCase()}d on ${dateFormat(date, "eventTime")}!`;
                                             }
 
-                                            getMoxtraToken(doc.binder.client_id, doc.binder.org_id, (err, token)=>{
-                                                if(token){
-                                                    //Post message to Moxtra
-                                                    postMessageBinder(msg, doc.binder.id, token.access_token);
-                                                }else{
-                                                    console.log('Error getting Moxtra token: '+err);
-                                                }
+                                            //send the Event msg to every binder
+                                            docs.forEach((doc)=>{
+                                                getMoxtraToken(doc.binder.org_id, doc.binder.client_id, (err, token)=>{
+                                                    if(token){
+                                                        //Post message to Moxtra
+                                                        postMessageBinder(msg, doc.binder.id, token.access_token);
+                                                    }else{
+                                                        console.log('Error getting Moxtra token: '+err);
+                                                    }
+                                                });
                                             });
                                         });
-                                    }); 
+                                    }else{
+                                        console.log(`No alerts in db for realmId: ${e.realmId}`);
+                                    }
                                 }                   
                             });                            
                         });
@@ -87,10 +98,10 @@ module.exports = {
     }
 }
 
-const getQBresourceDetails = (user_id, resource, resource_id, callback)=>{
+const getQBresourceDetails = (org_id, client_id, resource, resource_id, callback)=>{
 
     //get information from the QB Events
-    const session = { message: { user: {id: user_id } }};
+    const session = { message: { org_id, client_id }};
     const query = `Select DocNumber from ${resource.replace("_","")} Where Id = '${resource_id}'`;
     let responseObj = {};
 
@@ -150,27 +161,30 @@ const postMessageBinder = (text, binder_id, access_token)=>{
         }else{
             if(response.statusCode != 200){
                 //TO DO: Delete the alert if the binder is not valid anymore.
-                console.log('Error postMessageBinder: response code: '+response.statusCode);
-                console.log('Error postMessageBinder: response body: '+JSON.stringify(response.body));
+                console.error('Error postMessageBinder: response code: '+response.statusCode);
+                console.error('Error postMessageBinder: response body: '+JSON.stringify(response.body));
                 return;
             }else{//sucess
                 //callback(null, response.body);
-                console.log('Success postMessageBinder: response.body: '+response.body);
+                console.log('Success postMessageBinder: response.body: '+JSON.stringify(response.body));
                 return response.body;
             }
         }
     });
 };
 
-const getMoxtraToken = (client_id, org_id, callback)=>{
-    if(moxtra_tokens[client_id] && isMoxtraTokenValid(moxtra_tokens[client_id])){
+const getMoxtraToken = (org_id, client_id, callback)=>{
+    if(moxtra_tokens[org_id+client_id] && isMoxtraTokenValid(moxtra_tokens[org_id+client_id])){
         console.log("Valid Moxtra token in memory!!");
-        callback(null, moxtra_tokens[client_id]);
+        callback(null, moxtra_tokens[org_id+client_id]);
     }else{
         //first check in DB
         database.getBot(client_id, org_id, (err, result)=>{
             if(result && isMoxtraTokenValid(result.token)){
                 console.log("Valid Moxtra token in DB!!");
+
+                //store the token in memory for next requests
+                moxtra_tokens[org_id+client_id] = result.token;
                 callback(null, result.token);
             }else{
                 //second generate a new token
@@ -180,16 +194,16 @@ const getMoxtraToken = (client_id, org_id, callback)=>{
                         //third store the new Token in the DB
                         database.updateBotToken(result._id, result.org_id, token, (err, udpdated)=>{
                             if(err || !udpdated){
-                                console.log("\n\nNew Moxtra token not stored in DB.");
+                                console.error("New Moxtra token not stored in DB.");
                             }else{
                                 console.log("New Moxtra Token stored in memory for future!!");
                                 //store in memory too to quick access
-                                moxtra_tokens[result._id] = token;
+                                moxtra_tokens[result.org_id+result._id] = token;
                             }
                             callback(null, token);
                         });
                     }else{
-                        console.log('\n\nError generating new Moxtra Token: '+err);
+                        console.error('Error generating new Moxtra Token: '+err);
                         callback(err, null);
                     }
                 });
@@ -229,7 +243,7 @@ const genMoxtraAccessToken = function (client_id, org_id, secret, callback) {
 
 // verify if still valid
 const isMoxtraTokenValid = (token) => {
-    console.log("VALIDATING MOXTRA TOKEN!");
+    // console.log("VALIDATING MOXTRA TOKEN!");
     if (token) {
       const timestamp = (new Date).getTime();
       return timestamp < token.expired_time;

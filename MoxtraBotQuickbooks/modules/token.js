@@ -10,7 +10,7 @@ const storeToken = (tokenObj, cb)=>{
     
     console.log(`Storing Token in DB! org:${tokenObj.bot.org_id} client:${tokenObj.bot.client_id}`);
 
-    //first time getting token
+    //user loggin in
     if(!tokenObj.company.name){        
         //get Company's name
         const qb = require('./qbapi');
@@ -35,7 +35,7 @@ const storeToken = (tokenObj, cb)=>{
             }
         }); 
     }else{
-        //refreshing token
+        //app automatically refreshing the token
         database.updateQBToken(tokenObj, (err, result)=>{
             if(err){
                 console.log("Error updating token in DB: "+err);
@@ -51,7 +51,7 @@ const storeToken = (tokenObj, cb)=>{
 }
 
 const getToken = (org_id, client_id, cb)=>{
-    console.log(`\n\nGetting Quickbooks TOKEN. org:${org_id} client:${client_id}`);
+    console.log(`\nGetting Quickbooks TOKEN. org:${org_id} client:${client_id}`);
 
     if(!org_id || !client_id){
         console.log('Missing parameters for getToken.');
@@ -92,7 +92,7 @@ const getToken = (org_id, client_id, cb)=>{
                         });   
                     });
                 }else{
-                    console.log('DB Token IS VALID :D\nStoring IN MEMORY!!!!');
+                    console.log('DB Token IS VALID, Storing IN MEMORY!!!!');
                     //store token in memory 
                     storeInMemory(result);
                     cb(null, result);

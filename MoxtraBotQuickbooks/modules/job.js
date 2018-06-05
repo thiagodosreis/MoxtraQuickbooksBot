@@ -45,20 +45,42 @@ const logme = (name, date)=> {
 const runJob = (time)=>{
     const dburl = process.env.DATABASE;
     
-    
     try{
         MongoClient.connect(dburl, (err, database) => {
-            assert.equal(null, err);
+            if(err){
+                console.log("Database connection error: "+err);
+                return;
+            }
             // console.log("Successfully connected to MongoDB.");
             db = database.db();
             
-            //get the jobs from DB
-            const collec = db.collection('alerts');
-            const query = {"alerts.scheduled.frequency": "daily", "alerts.scheduled.time": time};
-            const cursor = collec.find(query);
-    
+            //get the alerts from DB
+            const collection = db.collection('alerts');
+            const aggregation = collection.aggregate([ 
+                {$match: { "alerts.scheduled": {$elemMatch: {"frequency" : "daily", "time" : time} } } }, 
+                {$project:  {
+                    "_id": 0,
+                    "binder":1,
+                    "user":1,
+                    "realmId":1,
+                    "alerts.scheduled": {
+                        $filter: {
+                            input: "$alerts.scheduled",
+                            as: "schedule",
+                            cond: { $and: [
+                                {$eq: ["$$schedule.time", time] },
+                                {$eq: ["$$schedule.frequency", "daily"] }
+                                ]}
+                            }
+                        }
+                    }	
+                },
+                { $sort: {"binder.org_id": 1, "binder.client_id": 1} } 
+            ]);
+            
+            console.log("AAAAAAAAAA");
             //post the messages to Bot Channel
-            cursor.forEach((doc)=>{
+            aggregation.forEach((doc)=>{
                 console.log('Feched doc:'+JSON.stringify(doc));
                 doc.alerts.scheduled.forEach((e)=>{
                     if(e.time == time){
@@ -71,6 +93,24 @@ const runJob = (time)=>{
                     console.log('Error feching docs:'+err);
                 }
             });
+
+            // const query = {"alerts.scheduled.frequency": "daily", "alerts.scheduled.time": time};
+            // const cursor = collec.find(query);
+    
+            //post the messages to Bot Channel
+            // cursor.forEach((doc)=>{
+            //     console.log('Feched doc:'+JSON.stringify(doc));
+            //     doc.alerts.scheduled.forEach((e)=>{
+            //         if(e.time == time){
+            //             console.log("----- > SENDING ALERT FOR: "+JSON.stringify(e));
+            //             sendAlert(doc, e.resource);
+            //         }
+            //     });
+            // },(err)=>{
+            //     if(err){
+            //         console.log('Error feching docs:'+err);
+            //     }
+            // });
     
             //end DB connection
             database.close();
@@ -82,6 +122,7 @@ const runJob = (time)=>{
     }
 }
 
+//post a message to the Channel Server pretending to be Moxtra/User
 const sendAlert = (alarm, resource)=>{
     const _url = process.env.BOT_CHANNEL_URL;
     
@@ -91,7 +132,8 @@ const sendAlert = (alarm, resource)=>{
 
     const post_json = {
         "message_type": "comment_posted",
-        "binder_id": alarm.binder.id,   "client_id": alarm.binder.client_id,
+        "binder_id": alarm.binder.id,   
+        "client_id": alarm.binder.client_id,
         "org_id": alarm.binder.org_id,    
         "event": {
             "user": {

@@ -70,7 +70,7 @@ module.exports = {
             }
             
         }
-        console.log("docDefinition:"+JSON.stringify(docDefinition));
+        // console.log("docDefinition:"+JSON.stringify(docDefinition));
 
         var pdfDoc = printer.createPdfKitDocument(docDefinition);
         

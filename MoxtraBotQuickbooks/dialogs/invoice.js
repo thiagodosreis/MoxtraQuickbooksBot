@@ -6,7 +6,6 @@ const Token = require('./../modules/token');
 module.exports = function(bot) {
     bot.dialog("searchInvoice",[
         function (session, args, next) {
-            // console.log("searchInvoice args:"+JSON.stringify(args));
 
             //getting arguments typed by the user
             if(args && args.intent && args.intent.entities && args.intent.entities.length > 0){
@@ -41,8 +40,6 @@ module.exports = function(bot) {
                     next({auth: true});
                 }
             });
-
-            // console.log("session.dialogData:"+JSON.stringify(session.dialogData));
         },
         function (session, results, next) {
             //not logged in

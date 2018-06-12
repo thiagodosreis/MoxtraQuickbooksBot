@@ -2,7 +2,12 @@
 
 const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert');
+const clone = require('clone');
 require('dotenv').load();
+
+var crypto = require('crypto'),
+    algorithm = 'aes-256-ctr',
+    password = 'Haga81ksl.kK@asj#l!HAl71kHa82ks';
 
 const dburl = process.env.DATABASE;
 let db;
@@ -50,21 +55,6 @@ module.exports = {
         });
     },
 
-    getQBToken: (org_id, client_id, callback) => {
-        const collec = db.collection('tokens');
-        const query = {"bot.org_id": org_id, "bot.client_id": client_id};
-    
-        collec.findOne(query, (err, doc)=>{
-            assert.equal(null, err);
-    
-            if(!doc){
-                callback(`Error: No token with the Org_id: ${org_id} and Client_id: ${client_id} found in the DB.`, null);
-            }else{
-                callback(null, doc);
-            }
-        });
-    },
-
     queryQBToken: (query, callback) => {
         const collec = db.collection('tokens');
     
@@ -79,11 +69,36 @@ module.exports = {
         });
     },
 
+    getQBToken: (org_id, client_id, callback) => {
+        const collec = db.collection('tokens');
+        const query = {"bot.org_id": org_id, "bot.client_id": client_id};
+    
+        collec.findOne(query, (err, doc)=>{
+            assert.equal(null, err);
+    
+            if(!doc){
+                callback(`Error: No token with the Org_id: ${org_id} and Client_id: ${client_id} found in the DB.`, null);
+            }else{
+                //decrypt access token and refresh token before pushing to Memory
+                doc.token.access_token = decrypt(doc.token.access_token);
+                doc.token.refresh_token = decrypt(doc.token.refresh_token);
+                
+                callback(null, doc);
+            }
+        });
+    },
+
     updateQBToken: (tokenObj, callback) => {
         const collec = db.collection('tokens');
-    
+
         if(tokenObj){        
-            collec.updateOne({"bot.org_id": tokenObj.bot.org_id, "bot.client_id": tokenObj.bot.client_id}, {$set: tokenObj }, {upsert: true} , (err, r)=>{
+            //clone the original object
+            //encrypt access token and refresh token before storing in the DB
+            var encrypet_token = clone(tokenObj);
+            encrypet_token.token.access_token = encrypt(encrypet_token.token.access_token);
+            encrypet_token.token.refresh_token = encrypt(encrypet_token.token.refresh_token);
+
+            collec.updateOne({"bot.org_id": tokenObj.bot.org_id, "bot.client_id": tokenObj.bot.client_id}, {$set: encrypet_token }, {upsert: true} , (err, r)=>{
                 if(err){
                     callback(err, null);
                 }else{
@@ -95,6 +110,7 @@ module.exports = {
                 }
             });
         }else{
+            console.log("Missign key data: user_id and token.");
             callback("Missign key data: user_id and token.",null);
         }  
     },
@@ -139,3 +155,17 @@ module.exports = {
     }
 
 }
+
+function encrypt(text){
+    var cipher = crypto.createCipher(algorithm,password)
+    var crypted = cipher.update(text,'utf8','hex')
+    crypted += cipher.final('hex');
+    return crypted;
+    }
+    
+function decrypt(text){
+    var decipher = crypto.createDecipher(algorithm,password)
+    var dec = decipher.update(text,'hex','utf8')
+    dec += decipher.final('utf8');
+    return dec;
+    }

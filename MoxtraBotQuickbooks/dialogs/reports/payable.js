@@ -38,7 +38,7 @@ function generateAPreport(session, reportUrl){
         else{
             if(result.Rows){
                 session.send("This is the current Account Payable report:");
-                console.log("Report result:"+JSON.stringify(result));
+                // console.log("Report result:"+JSON.stringify(result));
                 
                 //generate the itens
                 var items = [];

@@ -229,7 +229,7 @@ Chat.prototype.uploadRequest = function (body, file_path, audio_path) {
 			return res;
 		})
 		.catch(err => {
-			console.log(`Error uploading file: ${err}`);
+			// console.log(`Error uploading file: ${err}`);
 			fs.unlinkSync(file_path);
 			this.moxtrabot.emit('error', `Error uploading file: ${err}`);
 		});

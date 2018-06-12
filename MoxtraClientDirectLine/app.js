@@ -141,9 +141,12 @@ database.connect(() => {
             var conversationObj = _conversations[chat.binder_id];
                 console.log("\n----> Received from MOXTRA Bot Server:" + JSON.stringify(chat.data));
     
+                //create a new ConversationId, get the StreamURL and start listening for WebSocket
                 if (!conversationObj) {
                     dl.startConversationMS(client, chat.binder_id, function (err, newConversation) {
-                        if(!err){
+                        console.log("Creating new conversation for binder: "+chat.binder_id);
+
+                        if(!err){                        
                             //TODO: store the conversation_id and binder_id
                             _conversations[chat.binder_id] = newConversation;
     
@@ -154,7 +157,28 @@ database.connect(() => {
                             dl.sendMessagesMS(client, newConversation.conversationId, chat);
                         } 
                     });
-                } else {
+                } 
+                //Websocket closed, use the current ConversationId, get the New StreamURL and start listening for WebSocket
+                else if(conversationObj.suspended){
+                    console.log("Reconnecting existing conversation! Getting StreamUrl to old conversation: "+conversationObj.conversationId);
+                    
+                    dl.reconnectConversation(conversationObj.conversationId, conversationObj.watermark, (err, streamUrl)=>{
+                    
+                        console.log("NEW StreamUrl:" + streamUrl);
+                        _conversations[chat.binder_id].streamUrl = streamUrl;
+                        _conversations[chat.binder_id].suspended = false;
+
+                        //Start receiving messages from WS stream - using Node client
+                        startReceivingWebSocketClient(streamUrl, conversationObj.conversationId, chat);
+                        
+                        //send the message to MS    
+                        dl.sendMessagesMS(client, conversationObj.conversationId, chat);
+                    });
+                }
+                //websocket still opened and valid
+                else{
+                    console.log("Already have an open conversation: _conversations[chat.binder_id]"+JSON.stringify(_conversations[chat.binder_id]));
+
                     //send the message to MS
                     dl.sendMessagesMS(client, conversationObj.conversationId, chat);
                 }
@@ -181,14 +205,15 @@ database.connect(() => {
             });
 
             connection.on('close', function () {
-                console.error('WebSocket Client Disconnected');
-                reconnectWS(chat);
+                console.info('WebSocket Client Disconnected for conversationId:'+conversationId);
+                // reconnectWS(chat);
             });
             //***** Receive message from MS and send to Moxtra ***** 
             connection.on('message', function (message) {
                 console.log("WebSocket ---> Msg Received for conversationId: " + conversationId);
                 console.log("StreamUrl:" + streamUrl);
-                !chat && console.error("Sorry, couldn't find the chat obj that originate the message!");
+                // console.log("message:" + JSON.stringify(message));
+                !chat && console.error("Error! I couldn't find the chat obj that originate the message!");
 
                 // Occasionally, the Direct Line service sends an empty message as a liveness ping, Ignore these messages
                 if (message.type === 'utf8' && message.utf8Data.length > 0) {
@@ -196,10 +221,33 @@ database.connect(() => {
                     // send msg to Moxtra
                     sendMessagesMoxtra(data.activities, chat);
 
-                    //save the conversation watermark
+                    //save the conversation watermark and timestamp
                     if (_conversations[chat.binder_id] && data.watermark) {
                         _conversations[chat.binder_id].watermark = data.watermark;
                         console.log("WATERMARK STORED: " + data.watermark);
+
+                        //add timestamp
+                        _conversations[chat.binder_id].timestamp = new Date().toISOString();
+                        console.log("LAST MSG TIMESTAMP STORED: " + _conversations[chat.binder_id].timestamp );
+                    }
+                }else if(message.type === 'utf8' && message.utf8Data.length == 0){
+                    //keep alive msg: {"type":"utf8","utf8Data":""}
+                    
+                    var last_msg_time = new Date(_conversations[chat.binder_id].timestamp);
+                    var now = new Date();
+                    var minutes = (now.getTime() - last_msg_time.getTime()) / 1000 / 60
+                    
+                    // console.log("last_msg_time"+ last_msg_time);
+                    // console.log("now"+ now);
+                    // console.log("minutes"+ minutes);
+                    // console.log("process.env.WEBSOCKET_TIMEOUT_MIN:"+process.env.WEBSOCKET_TIMEOUT_MIN);
+
+                    //checking the time of open websocket
+                    if(minutes > process.env.WEBSOCKET_TIMEOUT_MIN){
+                        _conversations[chat.binder_id].suspended = true;
+                        
+                        //close old opened WebSockets connection, but keeping the track of conversation
+                        connection.close();
                     }
                 }
 
@@ -293,8 +341,6 @@ database.connect(() => {
 
     //reconnect Web Socket and try to get conversation and new stream url
     function reconnectWS(chat){
-        
-
         var conversationObj = _conversations[chat.binder_id];
         if (conversationObj) {
 

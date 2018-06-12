@@ -7,7 +7,7 @@ const report = require('./../../modules/report-pdfmaker');
 module.exports = function(bot) {
     bot.dialog("reportAR",[
         function (session, args, next) {
-            console.log("GOT AR REPORT REQUEST! SERVER 01");
+            // console.log("GOT AR REPORT REQUEST! SERVER DEV");
             
             //check if there is a token
             Token.getToken(session.message.org_id, session.message.client_id, (err, result)=>{

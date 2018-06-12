@@ -80,7 +80,7 @@ function generatesReport(session, reportUrl){
         }
         else{
             if(result){
-                console.log("Report result:"+JSON.stringify(result));
+                // console.log("Report result:"+JSON.stringify(result));
                 
                 //generate the itens
                 var items = [];

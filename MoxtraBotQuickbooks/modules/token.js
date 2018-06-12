@@ -7,8 +7,7 @@ const storeToken = (tokenObj, cb)=>{
         cb('Missing parameters for storeToken.', null);
         return;
     }
-    
-    console.log(`Storing Token in DB! org:${tokenObj.bot.org_id} client:${tokenObj.bot.client_id}`);
+
 
     //user loggin in
     if(!tokenObj.company.name){        
@@ -20,21 +19,31 @@ const storeToken = (tokenObj, cb)=>{
             }else{
                 tokenObj.company.name = data.Company[0].CompanyName;
 
+                console.log(`Storing Token in DB! org:${tokenObj.bot.org_id} client:${tokenObj.bot.client_id}`);
+
                 //refreshing token
                 database.updateQBToken(tokenObj, (err, result)=>{
                     if(err){
                         console.log("Error updating token in DB: "+err);
                         cb("Error updating token in DB: "+err, null);
-                    }else{
+                    }
+                    
+                    if(result){
                         console.log(`Storing Token in Memory! org:${tokenObj.bot.org_id} client:${tokenObj.bot.client_id}`);
-                        
+
                         //second keep it in memory to increase performance
                         cb(null, storeInMemory(tokenObj));
+                    }else{
+                        console.error(`Error storing Token in Memory! org:${tokenObj.bot.org_id} client:${tokenObj.bot.client_id}`);
+                        cb(null, null);
                     }
                 });
             }
         }); 
-    }else{
+    }
+    else{
+        console.log(`Storing Token in DB! org:${tokenObj.bot.org_id} client:${tokenObj.bot.client_id}`);
+
         //app automatically refreshing the token
         database.updateQBToken(tokenObj, (err, result)=>{
             if(err){
@@ -61,8 +70,8 @@ const getToken = (org_id, client_id, cb)=>{
     
     const oauth2 = new OAuth2();
     const tokenObj = readFromMemory(org_id, client_id);
-
-    //if token in memory and valid
+    
+    //No Token in memory
     if(!tokenObj){
         console.log('No Token in memory. Feaching DB...');
         //get token from DB
@@ -83,11 +92,11 @@ const getToken = (org_id, client_id, cb)=>{
             
                         //replace actual token by a renewed one
                         result.token = new_token;
-                        console.log("Token Renewed!");
+                        console.log("Token Renewed 1!");
 
                         //store new token 
-                        storeToken(result, (err, result)=>{
-                            cb(err, result);
+                        storeToken(result, (err, res)=>{
+                            cb(err, res);
                             return;
                         });   
                     });
@@ -99,7 +108,6 @@ const getToken = (org_id, client_id, cb)=>{
                 }
             }
         });   
-
     }else{
         console.log('There is a Token in Memory');
         //check if is valid
@@ -127,8 +135,8 @@ const getToken = (org_id, client_id, cb)=>{
                             console.log("Token Renewed!");
 
                             //store new token 
-                            storeToken(result, (err, result)=>{
-                                cb(err, result);
+                            storeToken(result, (err, res)=>{
+                                cb(err, res);
                                 return;
                             });   
                         });
@@ -140,26 +148,6 @@ const getToken = (org_id, client_id, cb)=>{
                     }
                 }
             });
-            
-            /* 
-                //refresh the token
-                // oauth2.refresh(tokenObj.token, (err, new_token)=>{
-                //     if(err){
-                //         cb('Error refreshing the QUICKBOOKS token: '+err, null);
-                //         return;
-                //     }
-        
-                //     //replace actual token by a renewed one
-                //     tokenObj.token = new_token;
-
-                //     //store new token 
-                //     storeToken(tokenObj, (err, result)=>{
-                //         console.log('getToken: In memory QUICKBOOKS Token not valid. Refreshing DB and Memory');
-                //         cb(err, result);
-                //         return;
-                //     });   
-                // });
-            */
         }else{
             console.log('Using Token From Memory!! :D');
             // return the in Memory Token
@@ -168,12 +156,13 @@ const getToken = (org_id, client_id, cb)=>{
     }
 }
 
-const storeInMemory = (tokenObj)=>{
-    // tokenObj.token.expires_at = new Date("2018-06-01T21:42:31.903Z");
-    return _token[tokenObj.bot.org_id+tokenObj.bot.client_id] = tokenObj;
+const storeInMemory = (aa)=>{
+    // console.log("Stored inMemoryToken:"+JSON.stringify(aa));
+    return _token[aa.bot.org_id+aa.bot.client_id] = aa;
 }
 
 const readFromMemory = (org_id, client_id)=>{
+    // console.log("Readed from inMemoryToken:"+JSON.stringify(_token[org_id+client_id]));
     return _token[org_id+client_id];
 }
 
@@ -181,7 +170,6 @@ const cleanInMemoryToken = (org_id, client_id)=>{
     console.error(`Warning -> Memory QB Token cleanned for org: ${org_id} and client: ${client_id}`);
     return _token[org_id+client_id] = {};
 }
-
 
 module.exports = {
     storeToken: storeToken,

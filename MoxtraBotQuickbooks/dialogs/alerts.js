@@ -66,7 +66,6 @@ module.exports = function(bot) {
         }
     );
 
-
     bot.dialog("configAlerts",[
         function (session, args, next) {
 
@@ -200,9 +199,9 @@ module.exports = function(bot) {
         },
         function (session, results, next) {
             if (results.response) {
-                console.log("time:"+results.response);
+                console.log("time:"+JSON.stringify(results.response));
                 var date = new Date(builder.EntityRecognizer.resolveTime([results.response]));
-                session.dialogData.time = date.getHours().padStart(2, "0")+":"+date.getMinutes().padStart(2, "0");
+                session.dialogData.time = padLeft(date.getHours(),"0", 2)+":"+padLeft(date.getMinutes(), "0",2);
             }
 
             if(session.dialogData.action == "start" && session.dialogData.frequency == "specific_day" && !session.dialogData.datetime){
@@ -339,4 +338,18 @@ function updateAlerts(alert, session){
         });
     });
     
+}
+
+
+function padLeft(txt, fill, size){    
+    var strTxt = txt.toString();
+    var result = strTxt;
+
+    if(strTxt.length < size){
+        for(var i = strTxt.length; i < size; i++){
+            result = fill + result;
+        }
+    }
+
+    return result;
 }

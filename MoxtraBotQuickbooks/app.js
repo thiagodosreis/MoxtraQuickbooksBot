@@ -12,8 +12,6 @@ global.database = require('./modules/database');
 global.builder = require('botbuilder');
 global.request = require('request');
 global.baseurl = process.env.QUICKBOOKS_BASEURL;
-
-// global._address = {}; //OAuth to store the cookies sent to Browser
 global._token = {}; //in memory token
 
 // Setup Restify Server
@@ -40,10 +38,7 @@ server.post('/api/messages', connector.listen());
 
 const qbalerts = require('./modules/qbwebhooks');
 server.post('/api/alerts', (req, res)=>{
-    // console.log("Data received:"+JSON.stringify(req.body));
-    // console.log("Called the function");
     qbalerts.getQBwebhooks(req, res, database);
-    // console.log("Sending 200 status");
     res.status(200);
     res.send();
 });
@@ -128,9 +123,6 @@ server.get("/oauth2/callback", function (req, res) {
                         });
                     }
 
-                    // console.log("\nQUICKBOOKS TOKEN:"+JSON.stringify(token));
-                    // console.log('ConversationId from cookies:'+cookies.conversationId);
-
                     //Post a message to the DL pretending to be the Channel
                     qb.postMessageDL(msg, cookies.org_id, cookies.client_id, cookies.user_id, cookies.user_name, cookies.conversationId, (err, result)=>{});                    
                 });                
@@ -147,17 +139,6 @@ server.get("/oauth2/callback", function (req, res) {
 var inMemoryStorage = new builder.MemoryBotStorage();
 var bot = new builder.UniversalBot(connector, [
     function(session){
-        /*
-            // session.send("Welcome to Moxtra Quickbooks Bot!");
-
-            // const msg= "Please select on option:[table]"+
-            //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt1\" client_id=\""+session.message.client_id+"\"]Invoice #1010[/mxButton][/td][/tr]"+
-            //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt2\" client_id=\""+session.message.client_id+"\"]Invoice #1012[/mxButton][/td][/tr]"+
-            //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt3\" client_id=\""+session.message.client_id+"\"]Invoice #1015[/mxButton][/td][/tr]"+
-            //             "[tr][td][/td][td][mxButton=bot_postback payload=\"opt4\" client_id=\""+session.message.client_id+"\"]Invoice #1014[/mxButton][/td][/tr]"+    
-            // "[/table]";
-        */
-
         const msg = "I'm sorry, I don't understand! Please type [i]help[/i] for assistance.";
         session.send(msg);
     }
@@ -167,6 +148,18 @@ var bot = new builder.UniversalBot(connector, [
 // Including LUIS
 var recognizer = new builder.LuisRecognizer(process.env.LUIS_MODEL_URL);
 bot.recognizer(recognizer);
+
+//Hello
+bot.dialog("helloDialog", (session) => {
+        session.send(`[b]Hello ${session.message.user.name}, I'm Moxie![/b]\n
+            I'm a chatbot that can help you bring data from [b]Quickbooks[/b] and collaborate with your team.\n
+            Ask me things like: [i]"Show me Account Receivable Report"[/i]
+            or just type [i]help[/i] for a full list.`);
+        session.endDialog();
+    }
+).triggerAction({
+    matches: 'hello'
+});
 
 
 //load the dialogs

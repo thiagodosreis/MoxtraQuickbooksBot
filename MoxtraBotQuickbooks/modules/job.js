@@ -20,7 +20,7 @@ var job = new cron.CronJob({
     onTick: ()=> {
         var date = new Date();
 
-        //changing time to PST for Pivotal server Only
+        //changing time from UTC to PST for Pivotal server Only
         date.setHours(date.getHours()-7);
 
         logme('job', date);
@@ -78,10 +78,8 @@ const runJob = (time)=>{
                 { $sort: {"binder.org_id": 1, "binder.client_id": 1} } 
             ]);
             
-            console.log("AAAAAAAAAA");
             //post the messages to Bot Channel
             aggregation.forEach((doc)=>{
-                console.log('Feched doc:'+JSON.stringify(doc));
                 doc.alerts.scheduled.forEach((e)=>{
                     if(e.time == time){
                         console.log("----- > SENDING ALERT FOR: "+JSON.stringify(e));

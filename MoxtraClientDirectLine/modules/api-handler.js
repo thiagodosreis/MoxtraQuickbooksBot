@@ -2,7 +2,7 @@
 
 module.exports = {
 
-    getAll: (req, res, database)=>{
+    getAllBots: (req, res, database)=>{
         validateAPItoken(req, res, ()=>{
             database.getAllBotsPublicInfo((err, results)=>{
                 presentAPIresult(res, err, results);
@@ -10,7 +10,7 @@ module.exports = {
         });
     },
 
-    get: (req, res, database)=>{
+    getBot: (req, res, database)=>{
         validateAPItoken(req, res, ()=>{
             database.getBot(req.params['id'], req.params['org'], (err, result)=>{
                 result && delete result.token;
@@ -19,7 +19,7 @@ module.exports = {
         });
     },
 
-    post: (req, res, database)=>{
+    postBot: (req, res, database)=>{
         validateAPItoken(req, res, ()=>{
             const data = req.body;
             if(!data){
@@ -33,7 +33,7 @@ module.exports = {
         });
     },
 
-    put: (req, res, database)=>{
+    putBot: (req, res, database)=>{
         validateAPItoken(req, res, ()=>{
             const data = req.body;
             if(!data){
@@ -47,7 +47,7 @@ module.exports = {
         });
     },
 
-    delete: (req, res, database)=>{
+    deleteBot: (req, res, database)=>{
         validateAPItoken(req, res, ()=>{
             database.deleteBot(req.params['id'], req.params['org'], (err, result)=>{
                 presentAPIresult(res, err, result);

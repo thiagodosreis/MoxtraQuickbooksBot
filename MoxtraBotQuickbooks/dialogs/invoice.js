@@ -16,9 +16,14 @@ module.exports = function(bot) {
                 }
                 //Due dates
                 var invoiceDueDateRange = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.daterange');
+                console.log("invoiceDueDateRange:"+JSON.stringify(invoiceDueDateRange));
                 if(invoiceDueDateRange){
-                    session.dialogData.invoiceInitDate = invoiceDueDateRange.resolution.values[0].start + " 00:00:00";
-                    session.dialogData.invoiceFinalDate = invoiceDueDateRange.resolution.values[0].end + " 00:00:00";
+                    if(invoiceDueDateRange.resolution.values[0].start){
+                        session.dialogData.invoiceInitDate = invoiceDueDateRange.resolution.values[0].start + " 00:00:00";
+                    }
+                    if(invoiceDueDateRange.resolution.values[0].end){
+                        session.dialogData.invoiceFinalDate = invoiceDueDateRange.resolution.values[0].end + " 00:00:00";
+                    }
                 }
                 //invoice number
                 var invoiceNumber = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceNumber');
@@ -52,6 +57,10 @@ module.exports = function(bot) {
                 if(session.dialogData.invoiceNumber){
                     next();
                 }else{
+                    if(!session.dialogData.customerName && !session.conversationData.customerName){
+                        session.send("First lets pick a customer.");
+                    }
+
                     //#02 Search for customer
                     // console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
                     if (!session.conversationData.customerId || session.dialogData.customerName){
@@ -64,15 +73,17 @@ module.exports = function(bot) {
             }
         },
         function (session, results, next) {
-            //if user provided invoice number or status, skip
-            if(session.dialogData.invoiceNumber || session.dialogData.invoiceStatus){
+            //if user provided invoice number or status+customer, skip
+            if(session.dialogData.invoiceNumber || 
+                (session.dialogData.invoiceStatus && session.conversationData.customerId)){
                 next();
-            }else{
+            }else{   
                 if(!session.conversationData.customerId){
-                    session.endDialog('Sorry no Customer selected.');
+                    // No Customer selected
+                    session.endDialog();
+                    return;
                 }
-                
-                //#03: Invoice Status: check if user provided it
+
                 if(!session.dialogData.invoiceInitDate){
                     builder.Prompts.time(session, "Please provide the initial Invoice Due Date:");
                 }else{
@@ -86,7 +97,7 @@ module.exports = function(bot) {
                 next();
             }else{
                 if(!session.dialogData.invoiceInitDate && results.response){
-                    session.dialogData.invoiceInitDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                    session.dialogData.invoiceInitDate = builder.EntityRecognizer.resolveTime([results.response]);
                 }
                     
                 //check if the user typed the final date
@@ -103,7 +114,7 @@ module.exports = function(bot) {
                 next();
             }else{
                 if(!session.dialogData.invoiceFinalDate && results.response){
-                    session.dialogData.invoiceFinalDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                    session.dialogData.invoiceFinalDate = builder.EntityRecognizer.resolveTime([results.response]);
                 }
 
                 //create the base query
@@ -180,7 +191,7 @@ module.exports = function(bot) {
                             builder.Prompts.choice(session, "I found "+data.maxResults+" invoice(s).\nPlease select the invoice you want to see:", invoices, { listStyle: 2 });
                         
                         }else{
-                            session.send("Sorry. I didn't find any invoice with the parameters.");
+                            session.send("No invoices match your search.");
                             session.endDialog();
                         }
                     }
@@ -217,7 +228,7 @@ module.exports = function(bot) {
                                 }
                             });
                         }else{
-                            session.endDialog("Sorry. I didn't find any invoice with that number.");
+                            session.endDialog(`[b]There is no invoice number ${session.dialogData.invoiceNumber}.[/b]`);
                         }
                     }
                 });

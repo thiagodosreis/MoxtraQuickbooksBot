@@ -21,10 +21,16 @@ module.exports = function(bot) {
                 }
                 //Due dates
                 var billDueDateRange = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.daterange');
+                console.log("billDueDateRange:"+JSON.stringify(billDueDateRange));
                 if(billDueDateRange){
-                    session.dialogData.billInitDate = billDueDateRange.resolution.values[0].start + " 00:00:00";
-                    session.dialogData.billFinalDate = billDueDateRange.resolution.values[0].end + " 00:00:00";
+                    if(billDueDateRange.resolution.values[0].start){
+                        session.dialogData.billInitDate = billDueDateRange.resolution.values[0].start + " 00:00:00";
+                    }
+                    if(billDueDateRange.resolution.values[0].end){
+                        session.dialogData.billFinalDate = billDueDateRange.resolution.values[0].end + " 00:00:00";
+                    }
                 }
+
                 //bill number
                 var billId = builder.EntityRecognizer.findEntity(args.intent.entities, 'billId');
                 if (billId){
@@ -46,7 +52,7 @@ module.exports = function(bot) {
                 }
             });
 
-            console.log("session.dialogData:"+JSON.stringify(session.dialogData));
+            // console.log("session.dialogData:"+JSON.stringify(session.dialogData));
         },
         function (session, results, next) {
             //not logged in
@@ -60,6 +66,10 @@ module.exports = function(bot) {
                 if(session.dialogData.billId){
                     next();
                 }else{
+                    if(!session.dialogData.vendorName && !session.conversationData.vendorName){
+                        session.send("First lets pick a vendor.");
+                    }
+
                     //#02 Search for vendor
                     console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
                     if (!session.conversationData.vendorId || session.dialogData.vendorName){
@@ -73,11 +83,14 @@ module.exports = function(bot) {
         },
         function (session, results, next) {
             //if user provided bill number or status, skip
-            if(session.dialogData.billId || session.dialogData.billStatus){
+            if(session.dialogData.billId || 
+                (session.dialogData.billStatus && session.conversationData.vendorId)){
                 next();
             }else{
                 if(!session.conversationData.vendorId){
-                    session.endDialog('Sorry no vendor selected.');
+                    // No Vendor selected
+                    session.endDialog();
+                    return;
                 }
                 
                 //#03: bill Status: check if user provided it
@@ -94,7 +107,7 @@ module.exports = function(bot) {
                 next();
             }else{
                 if(!session.dialogData.billInitDate && results.response){
-                    session.dialogData.billInitDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                    session.dialogData.billInitDate = builder.EntityRecognizer.resolveTime([results.response]);
                 }
                     
                 //check if the user typed the final date
@@ -111,7 +124,7 @@ module.exports = function(bot) {
                 next();
             }else{
                 if(!session.dialogData.billFinalDate && results.response){
-                    session.dialogData.billFinalDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                    session.dialogData.billFinalDate = builder.EntityRecognizer.resolveTime([results.response]);
                 }
 
                 //create the base query

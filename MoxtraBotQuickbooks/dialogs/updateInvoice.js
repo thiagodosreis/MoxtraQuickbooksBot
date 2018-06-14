@@ -64,7 +64,7 @@ module.exports = function(bot) {
                 session.dialogData.invoiceNewDueDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
             }
             
-            session.send("Ok. Updating invoice "+session.dialogData.invoiceNumber+" due date to "+session.dialogData.invoiceNewDueDate);
+            // session.send(`Updating invoice ${session.dialogData.invoiceNumber} due date to ${dateFormat(session.dialogData.invoiceNewDueDate,'mediumDate')}`);
 
             //search for the invoice by Doc Number
             var query = "Select * from Invoice where DocNumber = '"+session.dialogData.invoiceNumber+"'";
@@ -81,7 +81,7 @@ module.exports = function(bot) {
                     }
                 }
                 else{
-                    if(res.Invoice.length > 0){
+                    if(res.Invoice && res.Invoice.length > 0){
 
                         var invoice = res.Invoice[0];
 
@@ -110,7 +110,7 @@ module.exports = function(bot) {
                             }
                         });
                     }else{
-                        session.endDialog("Sorry. I didn't find any invoice with that number.");
+                        session.endDialog(`[b]There is no invoice number ${session.dialogData.invoiceNumber}.[/b]`);
                     }
                 }
             });            

@@ -32,11 +32,14 @@ app.get('/', (req, res, next) => {
 database.connect(() => {
 
     // ******** API interface ***********
-    app.get("/api", (req, res) => { api.getAll(req, res, database) });
-    app.get("/api/:id/:org", (req, res) => { api.get(req, res, database) });
-    app.post("/api", (req, res) => { api.post(req, res, database) });
-    app.put("/api/:id/:org", (req, res) => { api.put(req, res, database); });
-    app.delete("/api/:id/:org", (req, res)=>{ api.delete(req, res, database) });
+    //Bots
+    app.get("/api/bot", (req, res) => { api.getAllBots(req, res, database) });
+    app.get("/api/bot/:id/:org", (req, res) => { api.getBot(req, res, database) });
+    app.post("/api/bot", (req, res) => { api.postBot(req, res, database) });
+    app.put("/api/bot/:id/:org", (req, res) => { api.putBot(req, res, database); });
+    app.delete("/api/bot/:id/:org", (req, res)=>{ api.deleteBot(req, res, database) });
+    //Users
+    // app.get("/api/users/:id/:org", (req, res) => { api.get(req, res, database) });
 
     // ******** Webhook interface ***********
     app.post('/webhooks', (req, res, next) => {
@@ -205,6 +208,7 @@ database.connect(() => {
             });
 
             connection.on('close', function () {
+                _conversations[chat.binder_id].suspended = true;
                 console.info('WebSocket Client Disconnected for conversationId:'+conversationId);
                 // reconnectWS(chat);
             });

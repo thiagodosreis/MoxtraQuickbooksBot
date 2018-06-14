@@ -21,9 +21,14 @@ module.exports = function(bot) {
                 }
                 //dates
                 var estimateDateRange = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.daterange');
+                console.log("estimateDateRange:"+JSON.stringify(estimateDateRange));
                 if(estimateDateRange){
-                    session.dialogData.estimateInitDate = estimateDateRange.resolution.values[0].start;
-                    session.dialogData.estimateFinalDate = estimateDateRange.resolution.values[0].end;
+                    if(estimateDateRange.resolution.values[0].start){
+                        session.dialogData.estimateInitDate = estimateDateRange.resolution.values[0].start + " 00:00:00";
+                    }
+                    if(estimateDateRange.resolution.values[0].end){
+                        session.dialogData.estimateFinalDate = estimateDateRange.resolution.values[0].end + " 00:00:00";
+                    }
                 }
                 //estimate number
                 var estimateNumber = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceNumber');
@@ -36,7 +41,8 @@ module.exports = function(bot) {
                     if(estimateStatus.resolution.values[0] == "All"){
                         session.dialogData.estimateStatus = estimateStatus.resolution.values[0];
                     }else{
-                        session.send("Sorry I can't filter Estimates by Status, but you can specify dates or request All!");
+                        session.endDialog("I can't filter Estimates by status, but you can specify dates or ask for all estimates.");
+                        return;
                     }
                 }
                 
@@ -60,12 +66,17 @@ module.exports = function(bot) {
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
-            else{//search customer
+            else{
                 //#01 estimate Number: if user provided estimate Number, skip
                 if(session.dialogData.estimateNumber){
                     next();
                 }else{
-                    console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
+                    if(!session.dialogData.customerName && !session.conversationData.customerName){
+                        session.send("First lets pick a customer.");
+                    }
+                    
+                    //#02 Search for customer
+                    // console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
                     if (!session.conversationData.customerId || session.dialogData.customerName){
                         var args= {customerName: session.dialogData.customerName, displayMsg: false};
                         session.beginDialog('searchCustomer',args);
@@ -76,14 +87,17 @@ module.exports = function(bot) {
             }
         },
         function (session, results, next) {
-            if(session.dialogData.estimateNumber || session.dialogData.estimateStatus){
+            //if user provided invoice number or status+customer, skip
+            if(session.dialogData.estimateNumber || 
+                (session.dialogData.estimateStatus && session.conversationData.customerId)){
                 next();
             }else{
                 if(!session.conversationData.customerId){
-                    session.endDialog('Sorry no Customer selected.');
+                    // No Customer selected
+                    session.endDialog();
+                    return;
                 }
-                
-                //check if the user typed the start date
+
                 if(!session.dialogData.estimateInitDate){
                     builder.Prompts.time(session, "Please provide the initial Estimate Date:");
                 }else{
@@ -97,7 +111,7 @@ module.exports = function(bot) {
                 next();
             }else{
                 if(!session.dialogData.estimateInitDate){
-                    session.dialogData.estimateInitDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                    session.dialogData.estimateInitDate = builder.EntityRecognizer.resolveTime([results.response]);
                 }
                     
                 //check if the user typed the final date
@@ -114,7 +128,7 @@ module.exports = function(bot) {
                 next();
             }else{
                 if(!session.dialogData.estimateFinalDate && results.response){
-                    session.dialogData.estimateFinalDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                    session.dialogData.estimateFinalDate = builder.EntityRecognizer.resolveTime([results.response]);
                 }
             
                 //create the base query
@@ -202,7 +216,7 @@ module.exports = function(bot) {
                                 }
                             });
                         }else{
-                            session.endDialog("Sorry. I didn't find any estimate with that number.");
+                            session.endDialog(`[b]There is no estimate number ${session.dialogData.estimateNumber}.[/b]`);
                         }
                     }
                 });
@@ -330,7 +344,7 @@ module.exports = function(bot) {
                                 });
                             }
                         }else{
-                            session.endDialog("Sorry. I didn't find any invoice with that number.");
+                            session.endDialog(`[b]There is no estimate number ${session.dialogData.estimateNumber}.[/b]`);
                         }
                     }
                 });

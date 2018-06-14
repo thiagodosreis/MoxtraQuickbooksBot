@@ -16,9 +16,14 @@ module.exports = function(bot) {
                 }
                 //dates
                 var receiptDateRange = builder.EntityRecognizer.findEntity(args.intent.entities, 'builtin.datetimeV2.daterange');
+                console.log("receiptDateRange:"+JSON.stringify(receiptDateRange));
                 if(receiptDateRange){
-                    session.dialogData.receiptInitDate = receiptDateRange.resolution.values[0].start;
-                    session.dialogData.receiptFinalDate = receiptDateRange.resolution.values[0].end;
+                    if(receiptDateRange.resolution.values[0].start){
+                        session.dialogData.receiptInitDate = receiptDateRange.resolution.values[0].start + " 00:00:00";
+                    }
+                    if(receiptDateRange.resolution.values[0].end){
+                        session.dialogData.receiptFinalDate = receiptDateRange.resolution.values[0].end + " 00:00:00";
+                    }
                 }
                 //receipt number
                 var receiptNumber = builder.EntityRecognizer.findEntity(args.intent.entities, 'InvoiceNumber');
@@ -30,7 +35,6 @@ module.exports = function(bot) {
                 if(receiptStatus && receiptStatus.resolution.values[0] == "All"){
                     session.dialogData.receiptStatus = receiptStatus.resolution.values[0];
                 }
-            
             }
 
             //check if there is a token
@@ -51,12 +55,17 @@ module.exports = function(bot) {
                 session.send("Sorry, no authorization");
                 session.endConversation();
             }
-            else{//search customer
+            else{
                 //#01 receipt Number: if user provided receipt Number, skip
                 if(session.dialogData.receiptNumber){
                     next();
                 }else{
-                    console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
+                    if(!session.dialogData.customerName && !session.conversationData.customerName){
+                        session.send("First lets pick a customer.");
+                    }
+
+                    //#02 Search for customer
+                    // console.log("session.dialogData2:"+JSON.stringify(session.dialogData));
                     if (!session.conversationData.customerId || session.dialogData.customerName){
                         var args= {customerName: session.dialogData.customerName, displayMsg: false};
                         session.beginDialog('searchCustomer',args);
@@ -67,14 +76,18 @@ module.exports = function(bot) {
             }
         },
         function (session, results, next) {
-            if(session.dialogData.receiptNumber || session.dialogData.receiptStatus){
+            
+
+            if(session.dialogData.receiptNumber || (
+                session.dialogData.receiptStatus && session.conversationData.customerId)){
                 next();
             }else{
                 if(!session.conversationData.customerId){
-                    session.endDialog('Sorry no Customer selected.');
+                    // session.endDialog('Sorry no Customer selected.');
+                    session.endDialog();
+                    return;
                 }
                 
-                //check if the user typed the start date
                 if(!session.dialogData.receiptInitDate){
                     builder.Prompts.time(session, "Please provide the initial Sales Date:");
                 }else{
@@ -88,7 +101,7 @@ module.exports = function(bot) {
                 next();
             }else{
                 if(!session.dialogData.receiptInitDate){
-                    session.dialogData.receiptInitDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                    session.dialogData.receiptInitDate = builder.EntityRecognizer.resolveTime([results.response]);
                 }
                     
                 //check if the user typed the final date
@@ -105,7 +118,7 @@ module.exports = function(bot) {
                 next();
             }else{
                 if(!session.dialogData.receiptFinalDate && results.response){
-                    session.dialogData.receiptFinalDate = builder.EntityRecognizer.resolveTime([results.response]).toISOString();
+                    session.dialogData.receiptFinalDate = builder.EntityRecognizer.resolveTime([results.response]);
                 }
 
 

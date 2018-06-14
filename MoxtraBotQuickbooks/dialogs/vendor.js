@@ -39,17 +39,17 @@ module.exports = function(bot) {
                 }
             });
         },
-        function(session, results, next){
-            if (!session.dialogData.vendorName && !session.dialogData.allVendors){
-                builder.Prompts.text(session, "Please, type the name of the vendor:");
-            }else{
-                next();
-            }
-        },
+        // function(session, results, next){
+        //     if (!session.dialogData.vendorName && !session.dialogData.allVendors){
+        //         builder.Prompts.text(session, "Please, type the name of the vendor:");
+        //     }else{
+        //         next();
+        //     }
+        // },
         function (session, results, next) {
-            if(results.response){
-                session.dialogData.vendorName = results.response;
-            }
+            // if(results.response){
+            //     session.dialogData.vendorName = results.response;
+            // }
 
             // if(session.dialogData.displayMsg){
             //     session.send("Searching for vendor "+session.dialogData.vendorName+" ...");
@@ -71,7 +71,10 @@ module.exports = function(bot) {
                         session.send("Sorry, your QuickBooks session has expired. You need to login again into your account.");
                         session.beginDialog('login');
                     }else{
-                        session.send("Sorry. I didn't find any vendor with that name!");
+                        session.send(`[b]I didn't find any vendor with name ${jsUcfirst(session.dialogData.vendorName)}![/b]\nTo view all customers try: [i]Show me all vendors[/i]`);
+                        session.conversationData.vendorName = "";
+                        session.conversationData.vendorId = "";
+
                         session.endDialog();
                     }
                 } 
@@ -95,7 +98,10 @@ module.exports = function(bot) {
                             builder.Prompts.choice(session, "I found "+data.maxResults+" vendor(s). Please select:", vendors, { listStyle: 2 });
                         }
                     }else{
-                        session.send("Sorry. I didn't find any vendor with that name!");
+                        session.send(`[b]I didn't find any vendor with name ${jsUcfirst(session.dialogData.vendorName)}![/b]\nTo view all vendor try: [i]Show me all vendors[/i]`);
+                        session.conversationData.vendorName = "";
+                        session.conversationData.vendorId = "";
+
                         session.endDialog();
                     }
                 }
@@ -122,4 +128,9 @@ module.exports = function(bot) {
             matches: /^cancel$/i
         }
     );
+}
+
+function jsUcfirst(string) 
+{
+    return string.charAt(0).toUpperCase() + string.slice(1);
 }

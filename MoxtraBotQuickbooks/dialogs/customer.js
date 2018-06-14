@@ -37,20 +37,21 @@ module.exports = function(bot) {
                 }
             });
         },
-        function(session, results, next){
-            if (!session.dialogData.customerName && !session.dialogData.allCustomers){
-                builder.Prompts.text(session, "Please, type the name of the customer:");
-            }else{
-                next();
-            }
-        },
+        // function(session, results, next){
+        //     if (!session.dialogData.customerName && !session.dialogData.allCustomers){
+        //         builder.Prompts.text(session, "Please, type the name of the customer:");
+        //     }else{
+        //         next();
+        //     }
+        // },
         function (session, results, next) {
             if(results.response){
                 if(results.response.toLowerCase() == "all"){
                     session.dialogData.allCustomers = true;
-                }else{
-                    session.dialogData.customerName = results.response;
                 }
+                // else{
+                //     session.dialogData.customerName = results.response;
+                // }
             }
 
             let query = "Select Id, FullyQualifiedName from Customer";
@@ -67,7 +68,9 @@ module.exports = function(bot) {
                         //token not valid
                         session.endDialog("The access to QuickBooks was denied! Please, ask your Quickbooks Admin to log in again.");
                     }else{
-                        session.send("Sorry. I didn't find any customer with that name!");
+                        session.send(`[b]I didn't find any customer with name ${jsUcfirst(session.dialogData.customerName)}![/b]\nTo view all customers try: [i]Show me all customers[/i]`);
+                        session.conversationData.customerName = "";
+                        session.conversationData.customerId = "";
                         session.endDialog();
                     }
                 } 
@@ -88,10 +91,13 @@ module.exports = function(bot) {
                         if(data.maxResults == "1"){
                             next({response: {entity: data.Customer[0].FullyQualifiedName } });
                         }else{
-                            builder.Prompts.choice(session, "I found "+data.maxResults+" customer(s). Please select:", customers, { listStyle: 2 });
+                            builder.Prompts.choice(session, "I found "+data.maxResults+" customer(s).\nPlease select one:", customers, { listStyle: 2 });
                         }
                     }else{
-                        session.send("Sorry. I didn't find any customer with that name!");
+                        session.send(`[b]I didn't find any customer with name ${jsUcfirst(session.dialogData.customerName)}![/b]\nTo view all customers try: [i]Show me all customers[/i]`);
+                        session.conversationData.customerName = "";
+                        session.conversationData.customerId = "";
+
                         session.endDialog();
                     }
                 }
@@ -122,4 +128,10 @@ module.exports = function(bot) {
             confirmPrompt: "This will cancel your customer search. Are you sure?"
         }
     );
+}
+
+
+function jsUcfirst(string) 
+{
+    return string.charAt(0).toUpperCase() + string.slice(1);
 }
